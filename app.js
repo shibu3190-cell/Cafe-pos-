@@ -20,12 +20,10 @@ function hashString(str) {
 
 const defaultPinHash = hashString("1234");
 let shopProfile = { name: "Royal Cafe", address: "", fssai: "", gstin: "", tableCount: 10, logo: "", adminPinHash: defaultPinHash, startInvoiceNo: 1001 };
-let menuItems = [ { id: 1, name: "Espresso", price: 80, category: "Tea/Coffee", gstRate: 5, trackStock: false, stockQty: 0 }, { id: 2, name: "Chicken Sandwich", price: 150, category: "Food", gstRate: 5, trackStock: false, stockQty: 0 } ];
+let menuItems = [ { id: 1, name: "Espresso", price: 80.00, category: "Tea/Coffee", gstRate: 5, trackStock: false, stockQty: 0 }, { id: 2, name: "Chicken Sandwich", price: 150.00, category: "Food", gstRate: 5, trackStock: false, stockQty: 0 } ];
 let orderHistory = [];
 let dailyExpenses = [];
 let tablesInfo = {}; 
-
-// ✨ NEW: Dynamic Categories
 let menuCategories = ["Tea/Coffee", "Cigarettes", "Food", "Other"];
 
 const myClientID = localStorage.getItem('cafeLicenseKey') || 'unregistered';
@@ -72,7 +70,7 @@ async function loadFromLocal() {
     await idb.init();
     const lProf = await idb.get('cafe_profile'); if (lProf) shopProfile = lProf;
     const lMenu = await idb.get('cafe_menu'); if (lMenu) menuItems = lMenu;
-    const lCat = await idb.get('cafe_categories'); if(lCat) menuCategories = lCat; // Load custom categories
+    const lCat = await idb.get('cafe_categories'); if(lCat) menuCategories = lCat;
     const lHist = await idb.get('cafe_history'); if (lHist) orderHistory = lHist;
     const lExp = await idb.get('cafe_expenses'); if (lExp) dailyExpenses = lExp;
     const lQueue = await idb.get('cafe_syncQueue'); if(lQueue) syncQueue = lQueue;
@@ -87,7 +85,7 @@ async function loadFromLocal() {
 function saveToLocal() {
     idb.set('cafe_profile', shopProfile);
     idb.set('cafe_menu', menuItems);
-    idb.set('cafe_categories', menuCategories); // Save custom categories
+    idb.set('cafe_categories', menuCategories);
     idb.set('cafe_history', orderHistory);
     idb.set('cafe_expenses', dailyExpenses);
     idb.set('cafe_tables', tablesInfo);
@@ -95,8 +93,8 @@ function saveToLocal() {
 
 function updateAllUI() {
     updateProfileVisuals(); 
-    renderCategoryDropdown(); // Update category `<select>`
-    renderCategoryListUI(); // Show categories in Menu tab
+    renderCategoryDropdown(); 
+    renderCategoryListUI(); 
     renderTables(); 
     renderMenuUI();
     if(document.getElementById('pos').classList.contains('active')) updateCartUI();
@@ -111,7 +109,7 @@ function updateAllUI() {
     document.getElementById('startInvoiceInput').value = shopProfile.startInvoiceNo || 1001; 
 }
 
-// ✨ CLOUD SYNC ✨
+// ✨ 2. FIREBASE CLOUD SYNC ✨
 window.addEventListener('firebaseLoaded', () => {
     if(!navigator.onLine) return; 
     const dataRef = window.firebaseRef(window.firebaseDB, `clients/${myClientID}`);
@@ -179,7 +177,7 @@ async function processSyncQueue() {
     isSyncing = false;
 }
 
-// ✨ DEVICE INIT ✨
+// ✨ 3. DEVICE ACTIVATION & SECURITY ✨
 function getOrCreateDeviceId() {
     let deviceId = localStorage.getItem('cafeDeviceId');
     if (!deviceId) {
@@ -228,7 +226,6 @@ async function performRemoteLicenseCheck() {
 
 window.onload = async function() {
     document.getElementById('displayDeviceId').value = getOrCreateDeviceId();
-    
     await loadFromLocal();
     if (!navigator.onLine) document.getElementById('offlineBadge').style.display = 'inline-block';
 
@@ -283,6 +280,7 @@ function switchTab(tabId) {
     if(tabId === 'reports') renderStatements(); 
 }
 
+// ✨ 4. PROFILE & SETTINGS ✨
 function updateProfileVisuals() {
     document.getElementById('displayShopName').innerText = shopProfile.name;
     document.querySelector('.topbar-title').childNodes[0].nodeValue = shopProfile.name + " Terminal ";
@@ -304,7 +302,7 @@ function saveSettings() {
     persistProfile(); persistTables(); showToast("Settings Saved!"); updateProfileVisuals();
 }
 
-// ✨ DYNAMIC CATEGORY FUNCTIONS ✨
+// ✨ 5. DYNAMIC CATEGORIES & MENU ✨
 function renderCategoryDropdown() {
     const select = document.getElementById('newItemCategory');
     select.innerHTML = menuCategories.map(c => `<option value="${c}">${c}</option>`).join('');
@@ -328,13 +326,9 @@ function addCategory() {
         menuCategories.push(cat);
         document.getElementById('newCategoryName').value = '';
         persistCategories(); 
-        renderCategoryDropdown();
-        renderCategoryFilters();
-        renderCategoryListUI();
+        renderCategoryDropdown(); renderCategoryFilters(); renderCategoryListUI();
         showToast("Category added!");
-    } else if (menuCategories.includes(cat)) {
-        showToast("Category already exists.");
-    }
+    } else if (menuCategories.includes(cat)) { showToast("Category already exists."); }
 }
 
 function deleteCategory(cat) {
@@ -342,10 +336,7 @@ function deleteCategory(cat) {
         menuCategories = menuCategories.filter(c => c !== cat);
         if(activeCategory === cat) activeCategory = "All";
         persistCategories();
-        renderCategoryDropdown();
-        renderCategoryFilters();
-        renderCategoryListUI();
-        renderMenuUI();
+        renderCategoryDropdown(); renderCategoryFilters(); renderCategoryListUI(); renderMenuUI();
         showToast("Category deleted.");
     }
 }
@@ -364,12 +355,12 @@ function renderMenuUI() {
             const isLow = item.stockQty <= 5;
             stockBadge = `<div class="stock-badge ${isLow ? 'low' : ''}">${item.stockQty} left</div>`;
         }
-        posGrid.innerHTML += `<div class="menu-card" onclick="addToCart(${item.id})">${stockBadge}<div class="cat-label">${item.category}</div><div class="name">${item.name}</div><div class="price">₹${item.price}</div></div>`;
+        posGrid.innerHTML += `<div class="menu-card" onclick="addToCart(${item.id})">${stockBadge}<div class="cat-label">${item.category}</div><div class="name">${item.name}</div><div class="price">₹${item.price.toFixed(2)}</div></div>`;
     });
     
     document.getElementById('menuTableBody').innerHTML = menuItems.map(item => `
         <tr>
-            <td style="font-weight: 600; color: var(--text-dark);">${item.name}</td><td>${item.category}</td><td style="color: var(--accent); font-weight: 800;">₹${item.price}</td><td>${item.gstRate}%</td>
+            <td style="font-weight: 600; color: var(--text-dark);">${item.name}</td><td>${item.category}</td><td style="color: var(--accent); font-weight: 800;">₹${item.price.toFixed(2)}</td><td>${item.gstRate}%</td>
             <td><strong style="color: ${item.trackStock && item.stockQty <= 5 ? 'var(--danger)' : 'inherit'};">${item.trackStock ? item.stockQty : '∞'}</strong></td>
             <td>
                 <button class="btn btn-outline" style="padding: 6px 10px; font-size: 13px;" onclick="editMenuItem(${item.id})">Edit</button>
@@ -381,7 +372,7 @@ function renderMenuUI() {
 
 function addMenuItem() {
     const name = document.getElementById('newItemName').value; 
-    const price = parseFloat(document.getElementById('newItemPrice').value); // ✨ FIX: Preserves Decimals
+    const price = parseFloat(document.getElementById('newItemPrice').value); 
     const category = document.getElementById('newItemCategory').value; 
     const gstRate = parseFloat(document.getElementById('newItemGst').value) || 0; 
     const trackStock = document.getElementById('newItemTrackStock').checked; 
@@ -411,10 +402,10 @@ function editMenuItem(id) {
 }
 function deleteMenuItem(id) { if(confirm("Delete this item permanently?")) { menuItems = menuItems.filter(item => item.id !== id); persistMenu(); renderMenuUI(); showToast("Deleted."); } }
 
-// ✨ EXPENSES ✨
+// ✨ 6. EXPENSES & REPORTS ✨
 function addExpense() {
     const name = document.getElementById('expenseName').value; 
-    const cost = parseFloat(document.getElementById('expenseCost').value); // ✨ FIX: Preserves Decimals
+    const cost = parseFloat(document.getElementById('expenseCost').value); 
     
     if(name && cost) { 
         if (editingExpenseId) {
@@ -430,19 +421,13 @@ function addExpense() {
     } else { showToast("Please enter Item Name and Cost."); }
 }
 
-function editExpense(id) {
-    const exp = dailyExpenses.find(e => e.id === id);
-    if(exp) { document.getElementById('expenseName').value = exp.name; document.getElementById('expenseCost').value = exp.cost; editingExpenseId = id; document.getElementById('addExpenseBtn').innerText = "💾 Update"; window.scrollTo(0,0); }
-}
-
-function deleteExpense(id) {
-    if(confirm("Are you sure you want to delete this expense?")) { dailyExpenses = dailyExpenses.filter(e => e.id !== id); persistExpensesFirebase(); renderExpensesUI(); showToast("Expense deleted."); }
-}
+function editExpense(id) { const exp = dailyExpenses.find(e => e.id === id); if(exp) { document.getElementById('expenseName').value = exp.name; document.getElementById('expenseCost').value = exp.cost; editingExpenseId = id; document.getElementById('addExpenseBtn').innerText = "💾 Update"; window.scrollTo(0,0); } }
+function deleteExpense(id) { if(confirm("Delete this expense?")) { dailyExpenses = dailyExpenses.filter(e => e.id !== id); persistExpensesFirebase(); renderExpensesUI(); showToast("Expense deleted."); } }
 
 function renderExpensesUI() { 
     document.getElementById('expensesTableBody').innerHTML = dailyExpenses.map((exp, index) => {
         if(!exp.id) exp.id = Date.now() + index; 
-        return `<tr><td style="color: var(--text-muted);">${exp.time}</td><td style="font-weight: 600; color: var(--text-dark);">${exp.name}</td><td style="color: var(--danger); font-weight: 800;">-₹${exp.cost}</td><td><button class="btn btn-outline" style="padding: 6px 10px; font-size: 12px; margin-right: 5px;" onclick="editExpense(${exp.id})">Edit</button><button class="btn btn-danger" style="padding: 6px 10px; font-size: 12px;" onclick="deleteExpense(${exp.id})">Del</button></td></tr>`;
+        return `<tr><td style="color: var(--text-muted);">${exp.time}</td><td style="font-weight: 600; color: var(--text-dark);">${exp.name}</td><td style="color: var(--danger); font-weight: 800;">-₹${exp.cost.toFixed(2)}</td><td><button class="btn btn-outline" style="padding: 6px 10px; font-size: 12px; margin-right: 5px;" onclick="editExpense(${exp.id})">Edit</button><button class="btn btn-danger" style="padding: 6px 10px; font-size: 12px;" onclick="deleteExpense(${exp.id})">Del</button></td></tr>`;
     }).join(''); 
 }
 
@@ -498,6 +483,7 @@ function exportHistoryToExcel() {
     const link = document.createElement("a"); link.setAttribute("href", URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }))); link.setAttribute("download", `Sales_${dateInput}.csv`); link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
 
+// ✨ 7. CART & TABLE MANAGEMENT ✨
 function renderTables() {
     const grid = document.getElementById('tableGridUI'); grid.innerHTML = '';
     for(let i = 1; i <= shopProfile.tableCount; i++) {
@@ -543,88 +529,11 @@ function updateCartUI() {
                 let basePrice = itemTotal / (1 + (gst / 100)); 
                 totalGstAmt += (itemTotal - basePrice);
             }
-            cartDiv.innerHTML += `<div class="cart-item"><div class="cart-item-top"><span class="cart-item-name">${item.name}</span><span class="cart-item-price">₹${itemTotal.toFixed(2)}</span></div><div class="cart-item-bottom"><span class="cart-item-math">₹${item.price} each</span><div class="qty-pill"><button onclick="modifyQty(${item.id}, -1)">-</button><span>${item.qty}</span><button onclick="modifyQty(${item.id}, 1)">+</button></div></div></div>`;
+            cartDiv.innerHTML += `<div class="cart-item"><div class="cart-item-top"><span class="cart-item-name">${item.name}</span><span class="cart-item-price">₹${itemTotal.toFixed(2)}</span></div><div class="cart-item-bottom"><span class="cart-item-math">₹${item.price.toFixed(2)} each</span><div class="qty-pill"><button onclick="modifyQty(${item.id}, -1)">-</button><span>${item.qty}</span><button onclick="modifyQty(${item.id}, 1)">+</button></div></div></div>`;
         });
     }
     document.getElementById('totalUI').innerText = total.toFixed(2); document.getElementById('gstBreakdownUI').innerText = totalGstAmt > 0 ? `Includes ₹${totalGstAmt.toFixed(2)} GST` : "No GST Applied";
     cartDiv.scrollTop = cartDiv.scrollHeight;
-}
-
-// ✨ KITCHEN ORDER TICKET (KOT) ENGINE ✨
-function sendToKitchen() { 
-    let tInfo = tablesInfo[activeTable]; 
-    if(tInfo.items.length === 0) return showToast("Nothing to send!"); 
-    tInfo.status = 'saved'; persistTables(); renderTables(); 
-    
-    document.getElementById('kotTableNoDisplay').innerText = activeTable;
-    document.getElementById('kotModal').style.display = 'flex';
-}
-
-async function printKitchenTicket() {
-    const btn = document.querySelector('#kotModal .btn-warning');
-    btn.disabled = true;
-    btn.innerText = printCharacteristic ? "⏳ Printing KOT..." : "📄 Generating PDF KOT...";
-
-    let tInfo = tablesInfo[activeTable];
-    await sendKotToPrinter(activeTable, tInfo.items);
-    
-    document.getElementById('kotModal').style.display = 'none';
-    
-    btn.disabled = false;
-    btn.innerText = "🖨️ Print KOT";
-    showToast(`👨‍🍳 Table ${activeTable} KOT Processed.`);
-}
-
-async function sendKotToPrinter(tableNo, items) {
-    if (!printCharacteristic) {
-        showToast("⚠️ No BLE Printer found. Opening PDF Preview..."); 
-        document.getElementById('print-receipt').style.display = 'none';
-        document.getElementById('print-kot').style.display = 'block';
-
-        document.getElementById('printKotTableNo').innerText = tableNo;
-        document.getElementById('printKotTime').innerText = new Date().toLocaleTimeString();
-        let itemsHtml = '';
-        items.forEach(item => {
-            itemsHtml += `<div style="display:flex; justify-content:space-between; margin-bottom: 8px; border-bottom: 1px dashed #ccc; padding-bottom: 4px;"><span>${item.name}</span><span style="font-size:18px;">x${item.qty}</span></div>`;
-        });
-        document.getElementById('printKotItems').innerHTML = itemsHtml;
-
-        window.print();
-        setTimeout(() => { document.getElementById('print-kot').style.display = 'none'; }, 1000);
-        return;
-    }
-
-    const ESC = '\x1B'; const GS = '\x1D'; const INIT = ESC + '@'; 
-    const ALIGN_CENTER = ESC + 'a\x01'; const ALIGN_LEFT = ESC + 'a\x00'; 
-    const BOLD_ON = ESC + 'E\x01'; const BOLD_OFF = ESC + 'E\x00'; 
-    const DOUBLE_SIZE = GS + '!\x11'; const NORMAL_SIZE = GS + '!\x00'; 
-    const FEED_AND_CUT = '\x0A\x0A\x0A\x0A' + ESC + 'm'; 
-
-    let kotText = INIT;
-    kotText += ALIGN_CENTER + BOLD_ON + "KITCHEN TICKET\n" + BOLD_OFF;
-    kotText += "--------------------------------\n";
-    kotText += DOUBLE_SIZE + BOLD_ON + `TABLE: ${tableNo}\n` + NORMAL_SIZE + BOLD_OFF;
-    kotText += `Time: ${new Date().toLocaleTimeString()}\n`;
-    kotText += "--------------------------------\n";
-    kotText += ALIGN_LEFT;
-
-    items.forEach(item => {
-        kotText += DOUBLE_SIZE + `${item.qty}x ${item.name}\n` + NORMAL_SIZE;
-        kotText += "--------------------------------\n";
-    });
-
-    kotText += ALIGN_CENTER + "*** END OF KOT ***\n" + FEED_AND_CUT;
-
-    const encoder = new TextEncoder();
-    const payload = encoder.encode(kotText);
-    const CHUNK_SIZE = 100; 
-    try {
-        for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
-            const chunk = payload.slice(i, i + CHUNK_SIZE);
-            await printCharacteristic.writeValue(chunk);
-            await new Promise(resolve => setTimeout(resolve, 20)); 
-        }
-    } catch(e) { console.error(e); showToast("❌ KOT Print Failed."); }
 }
 
 function markServed() { let tInfo = tablesInfo[activeTable]; if(tInfo.items.length === 0) return showToast("Table empty!"); tInfo.status = 'served'; tInfo.lastReminder = Date.now(); persistTables(); renderTables(); showToast(`Table ${activeTable} served. Timer started.`); }
@@ -644,7 +553,11 @@ function openCheckoutModal() {
     document.getElementById('checkoutModal').style.display = 'flex';
 }
 
-// ✨ INSTANT CLEAR CHECKOUT ENGINE (With Double-Click Protection) ✨
+function clearTable() { if(confirm("Clear this entire order?")) { tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); renderTables(); updateCartUI(); } }
+function showToast(message) { const container = document.getElementById('toast-container'), toast = document.createElement('div'); toast.className = 'toast'; toast.innerHTML = `<span>🔔</span> ${message}`; container.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(-10px)'; toast.style.transition = 'all 0.3s ease'; setTimeout(() => toast.remove(), 300); }, 3000); }
+
+
+// ✨ 8. CHECKOUT ENGINE (With Safe PDF Fallback & Button Lock) ✨
 async function confirmCheckout() {
     let tInfo = tablesInfo[activeTable]; 
     if(!tInfo || tInfo.items.length === 0) return showToast(`Table ${activeTable} is empty!`);
@@ -655,36 +568,69 @@ async function confirmCheckout() {
 
     document.getElementById('checkoutModal').style.display = 'none';
     
-    let total = 0;
-    const itemNames = tInfo.items.map(i => `${i.name} (x${i.qty})`).join(', ');
-    tInfo.items.forEach(item => { total += (item.price * item.qty); });
+    try {
+        let total = 0;
+        const itemNames = tInfo.items.map(i => `${i.name} (x${i.qty})`).join(', ');
+        tInfo.items.forEach(item => { total += (item.price * item.qty); });
 
-    const oType = document.getElementById('checkoutOrderType').value; const pMode = document.getElementById('selectedPaymentMode').value;
-    const cName = document.getElementById('checkoutCustomerName').value.trim(); const bName = document.getElementById('checkoutBillerName').value.trim();
-    const fullDateStr = new Date().toLocaleString(); const safeFilterDate = getLocalISODate();
-    const finalTableStr = oType === 'Takeaway' ? 'Takeaway' : `Table ${activeTable}`;
+        const oType = document.getElementById('checkoutOrderType').value; const pMode = document.getElementById('selectedPaymentMode').value;
+        const cName = document.getElementById('checkoutCustomerName').value.trim(); const bName = document.getElementById('checkoutBillerName').value.trim();
+        const fullDateStr = new Date().toLocaleString(); const safeFilterDate = getLocalISODate();
+        const finalTableStr = oType === 'Takeaway' ? 'Takeaway' : `Table ${activeTable}`;
 
-    const currentStartNo = shopProfile.startInvoiceNo || 1001; const highestExistingBill = orderHistory.length > 0 ? Math.max(...orderHistory.map(o => o.billNo || 0)) : 0;
-    const generatedBillNo = Math.max(currentStartNo, highestExistingBill + 1);
+        const currentStartNo = shopProfile.startInvoiceNo || 1001; const highestExistingBill = orderHistory.length > 0 ? Math.max(...orderHistory.map(o => o.billNo || 0)) : 0;
+        const generatedBillNo = Math.max(currentStartNo, highestExistingBill + 1);
 
-    const newOrder = { id: Date.now(), billNo: generatedBillNo, date: fullDateStr, filterDate: safeFilterDate, table: finalTableStr, orderType: oType, paymentMode: pMode, customer: cName, biller: bName, items: itemNames, rawItems: JSON.parse(JSON.stringify(tInfo.items)), amount: total };
-    
-    await sendEscPosToPrinter(newOrder);
-    
-    tInfo.items.forEach(cartItem => { const mItem = menuItems.find(m => m.id === cartItem.id); if (mItem && mItem.trackStock) { mItem.stockQty -= cartItem.qty; if (mItem.stockQty < 0) mItem.stockQty = 0; } });
-    persistMenu(); orderHistory.unshift(newOrder); persistHistoryFirebase(); 
-    tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); 
-    pushToGoogleSheetsQueue('addOrder', newOrder); renderTables(); updateCartUI();
-    showToast("✅ Payment recorded & Table cleared.");
-
-    payBtn.disabled = false;
-    payBtn.innerText = "🖨️ Pay & Print";
+        const newOrder = { id: Date.now(), billNo: generatedBillNo, date: fullDateStr, filterDate: safeFilterDate, table: finalTableStr, orderType: oType, paymentMode: pMode, customer: cName, biller: bName, items: itemNames, rawItems: JSON.parse(JSON.stringify(tInfo.items)), amount: total };
+        
+        await sendEscPosToPrinter(newOrder);
+        
+        tInfo.items.forEach(cartItem => { const mItem = menuItems.find(m => m.id === cartItem.id); if (mItem && mItem.trackStock) { mItem.stockQty -= cartItem.qty; if (mItem.stockQty < 0) mItem.stockQty = 0; } });
+        persistMenu(); orderHistory.unshift(newOrder); persistHistoryFirebase(); 
+        tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); 
+        pushToGoogleSheetsQueue('addOrder', newOrder); renderTables(); updateCartUI();
+        showToast("✅ Payment recorded & Table cleared.");
+    } catch (e) {
+        console.error(e);
+        showToast("❌ Error processing checkout.");
+    } finally {
+        payBtn.disabled = false;
+        payBtn.innerText = "🖨️ Pay & Print";
+    }
 }
 
-function clearTable() { if(confirm("Clear this entire order?")) { tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); renderTables(); updateCartUI(); } }
-function showToast(message) { const container = document.getElementById('toast-container'), toast = document.createElement('div'); toast.className = 'toast'; toast.innerHTML = `<span>🔔</span> ${message}`; container.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(-10px)'; toast.style.transition = 'all 0.3s ease'; setTimeout(() => toast.remove(), 300); }, 3000); }
 
-// ✨ ADVANCED ESC/POS BLUETOOTH ENGINE ✨
+// ✨ 9. KITCHEN ORDER TICKET (KOT) ENGINE ✨
+function sendToKitchen() { 
+    let tInfo = tablesInfo[activeTable]; 
+    if(tInfo.items.length === 0) return showToast("Nothing to send!"); 
+    tInfo.status = 'saved'; persistTables(); renderTables(); 
+    
+    document.getElementById('kotTableNoDisplay').innerText = activeTable;
+    document.getElementById('kotModal').style.display = 'flex';
+}
+
+async function printKitchenTicket() {
+    const btn = document.querySelector('#kotModal .btn-warning');
+    btn.disabled = true;
+    btn.innerText = printCharacteristic ? "⏳ Printing KOT..." : "📄 Generating PDF KOT...";
+
+    let tInfo = tablesInfo[activeTable];
+    
+    try {
+        await sendKotToPrinter(activeTable, tInfo.items);
+        document.getElementById('kotModal').style.display = 'none';
+        showToast(`👨‍🍳 Table ${activeTable} KOT Processed.`);
+    } catch(e) {
+        console.error(e); showToast("❌ KOT Error.");
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "🖨️ Print KOT";
+    }
+}
+
+
+// ✨ 10. ADVANCED ESC/POS BLUETOOTH & HTML ENGINE ✨
 async function getLogoBytes(base64Image) {
     return new Promise((resolve) => {
         const img = new Image();
@@ -717,6 +663,8 @@ async function getLogoBytes(base64Image) {
         img.onerror = () => resolve(null); img.src = base64Image;
     });
 }
+
+let bleDevice = null; let bleServer = null; let printCharacteristic = null;
 
 async function connectBluetoothPrinter() {
     if (!navigator.bluetooth) return alert("Web Bluetooth is not supported on this browser (Try Chrome on Android/PC).");
@@ -762,7 +710,6 @@ async function sendEscPosToPrinter(order) {
                 let basePrice = itemTotal / (1 + (gst / 100)); 
                 let taxAmt = itemTotal - basePrice;
                 if(!gstSummary[gst]) gstSummary[gst] = { base: 0, tax: 0 };
-                // ✨ FIX: Floating point math fix
                 gstSummary[gst].base = Math.round((gstSummary[gst].base + basePrice) * 100) / 100;
                 gstSummary[gst].tax = Math.round((gstSummary[gst].tax + taxAmt) * 100) / 100;
             }
@@ -785,10 +732,13 @@ async function sendEscPosToPrinter(order) {
         }
 
         document.getElementById('printTotal').innerText = `₹${order.amount.toFixed(2)}`;
-        window.print(); 
-
-        setTimeout(() => { document.getElementById('print-receipt').style.display = 'none'; }, 1000);
-        return;
+        
+        return new Promise(resolve => {
+            setTimeout(() => {
+                window.print();
+                setTimeout(() => { document.getElementById('print-receipt').style.display = 'none'; resolve(); }, 1500); 
+            }, 300); 
+        });
     }
 
     const ESC = '\x1B'; const GS = '\x1D'; const INIT = ESC + '@'; 
@@ -798,13 +748,11 @@ async function sendEscPosToPrinter(order) {
     const FEED_AND_CUT = '\x0A\x0A\x0A\x0A' + ESC + 'm'; 
 
     let receiptText = INIT;
-    
     receiptText += ALIGN_CENTER + DOUBLE_SIZE + BOLD_ON + shopProfile.name + '\n' + NORMAL_SIZE + BOLD_OFF;
     if(shopProfile.address) receiptText += shopProfile.address + '\n';
     if(shopProfile.fssai) receiptText += 'FSSAI: ' + shopProfile.fssai + '\n';
     if(shopProfile.gstin && shopProfile.gstin.trim() !== "") receiptText += 'GSTIN: ' + shopProfile.gstin + '\n';
     receiptText += '--------------------------------\n'; 
-    
     receiptText += ALIGN_LEFT;
     receiptText += BOLD_ON + 'Invoice: #' + (order.billNo || 'TEST') + '\n' + BOLD_OFF;
     if(order.orderType !== 'Takeaway') receiptText += 'Table: ' + String(order.table).replace('Table ', '') + '\n';
@@ -818,7 +766,6 @@ async function sendEscPosToPrinter(order) {
     order.rawItems.forEach(item => {
         let qtyName = `${item.qty}x ${item.name}`; 
         let priceStr = (item.price * item.qty).toFixed(2);
-        
         if (qtyName.length + priceStr.length > 31) {
             receiptText += qtyName.substring(0, 32) + '\n'; 
             receiptText += priceStr.padStart(32, ' ') + '\n'; 
@@ -837,13 +784,11 @@ async function sendEscPosToPrinter(order) {
     });
 
     receiptText += '--------------------------------\n';
-    
     if (Object.keys(gstSummary).length > 0) {
         receiptText += ALIGN_CENTER + '--- GST BREAKDOWN ---\n' + ALIGN_LEFT;
         for(let rate in gstSummary) {
             let base = gstSummary[rate].base.toFixed(2);
             let halfGst = (gstSummary[rate].tax / 2).toFixed(2);
-            
             receiptText += `Taxable Value (${rate}%)`.padEnd(22, ' ') + base.padStart(10, ' ') + '\n';
             receiptText += `CGST @ ${rate/2}%`.padEnd(22, ' ') + halfGst.padStart(10, ' ') + '\n';
             receiptText += `SGST @ ${rate/2}%`.padEnd(22, ' ') + halfGst.padStart(10, ' ') + '\n';
@@ -852,7 +797,7 @@ async function sendEscPosToPrinter(order) {
         receiptText += '--------------------------------\n';
     }
 
-    receiptText += ALIGN_CENTER + DOUBLE_SIZE + BOLD_ON + `TOTAL: ${order.amount.toFixed(2)}\n` + NORMAL_SIZE + BOLD_OFF;
+    receiptText += ALIGN_CENTER + DOUBLE_SIZE + BOLD_ON + `TOTAL: Rs.${order.amount.toFixed(2)}\n` + NORMAL_SIZE + BOLD_OFF;
     receiptText += '--------------------------------\n';
     receiptText += ALIGN_CENTER + 'Thank You! Visit Again\n';
     receiptText += FEED_AND_CUT;
@@ -883,6 +828,61 @@ async function sendEscPosToPrinter(order) {
             await new Promise(resolve => setTimeout(resolve, 20)); 
         }
     } catch(e) { console.error(e); showToast("❌ Print Failed. Printer might be off."); }
+}
+
+async function sendKotToPrinter(tableNo, items) {
+    if (!printCharacteristic) {
+        showToast("⚠️ No BLE Printer found. Opening PDF Preview..."); 
+        document.getElementById('print-receipt').style.display = 'none';
+        document.getElementById('print-kot').style.display = 'block';
+
+        document.getElementById('printKotTableNo').innerText = tableNo;
+        document.getElementById('printKotTime').innerText = new Date().toLocaleTimeString();
+        let itemsHtml = '';
+        items.forEach(item => {
+            itemsHtml += `<div style="display:flex; justify-content:space-between; margin-bottom: 8px; border-bottom: 1px dashed #ccc; padding-bottom: 4px;"><span>${item.name}</span><span style="font-size:18px;">x${item.qty}</span></div>`;
+        });
+        document.getElementById('printKotItems').innerHTML = itemsHtml;
+
+        return new Promise(resolve => {
+            setTimeout(() => {
+                window.print();
+                setTimeout(() => { document.getElementById('print-kot').style.display = 'none'; resolve(); }, 1500); 
+            }, 300);
+        });
+    }
+
+    const ESC = '\x1B'; const GS = '\x1D'; const INIT = ESC + '@'; 
+    const ALIGN_CENTER = ESC + 'a\x01'; const ALIGN_LEFT = ESC + 'a\x00'; 
+    const BOLD_ON = ESC + 'E\x01'; const BOLD_OFF = ESC + 'E\x00'; 
+    const DOUBLE_SIZE = GS + '!\x11'; const NORMAL_SIZE = GS + '!\x00'; 
+    const FEED_AND_CUT = '\x0A\x0A\x0A\x0A' + ESC + 'm'; 
+
+    let kotText = INIT;
+    kotText += ALIGN_CENTER + BOLD_ON + "KITCHEN TICKET\n" + BOLD_OFF;
+    kotText += "--------------------------------\n";
+    kotText += DOUBLE_SIZE + BOLD_ON + `TABLE: ${tableNo}\n` + NORMAL_SIZE + BOLD_OFF;
+    kotText += `Time: ${new Date().toLocaleTimeString()}\n`;
+    kotText += "--------------------------------\n";
+    kotText += ALIGN_LEFT;
+
+    items.forEach(item => {
+        kotText += DOUBLE_SIZE + `${item.qty}x ${item.name}\n` + NORMAL_SIZE;
+        kotText += "--------------------------------\n";
+    });
+
+    kotText += ALIGN_CENTER + "*** END OF KOT ***\n" + FEED_AND_CUT;
+
+    const encoder = new TextEncoder();
+    const payload = encoder.encode(kotText);
+    const CHUNK_SIZE = 100; 
+    try {
+        for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
+            const chunk = payload.slice(i, i + CHUNK_SIZE);
+            await printCharacteristic.writeValue(chunk);
+            await new Promise(resolve => setTimeout(resolve, 20)); 
+        }
+    } catch(e) { console.error(e); showToast("❌ KOT Print Failed."); }
 }
 
 function reprintReceipt(orderId) { const order = orderHistory.find(o => o.id === orderId); if (!order || !order.rawItems) return showToast("Cannot print old order details."); sendEscPosToPrinter(order); }
