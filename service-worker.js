@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cafe-pos-cache-v11'; 
+const CACHE_NAME = 'cafe-pos-cache-v12'; 
 const urlsToCache = [
     './',
     './index.html',
