@@ -888,12 +888,43 @@ async function sendKotToPrinter(tableNo, items) {
 function reprintReceipt(orderId) { const order = orderHistory.find(o => o.id === orderId); if (!order || !order.rawItems) return showToast("Cannot print old order details."); sendEscPosToPrinter(order); }
 function testThermalPrinter() { const dummyOrder = { billNo: 'TEST-999', date: new Date().toLocaleString(), orderType: 'Dine-In', paymentMode: 'Cash', amount: 270, rawItems: [ {name: "Standard Espresso", qty: 1, price: 80, gstRate: 5}, {name: "Water Bottle", qty: 2, price: 20, gstRate: 0} ] }; sendEscPosToPrinter(dummyOrder); }
 
-// ✨ PWA SERVICE WORKER ✨
-if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('./service-worker.js').then(reg => console.log('SW Registered!')).catch(err => console.log('SW Failed:', err)); }); }
-let deferredPrompt; window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; });
-function installApp() { if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.then((choiceResult) => { deferredPrompt = null; }); } else { showToast("App is already installed."); } }
+// ✨ PWA SERVICE WORKER & SMART INSTALL ✨
+if ('serviceWorker' in navigator) { 
+    window.addEventListener('load', () => { 
+        navigator.serviceWorker.register('./service-worker.js')
+            .then(reg => console.log('SW Registered!'))
+            .catch(err => console.log('SW Failed:', err)); 
+    }); 
+}
 
-// ✨ GLOBALLY EXPOSE FUNCTIONS ✨
+let deferredPrompt; 
+window.addEventListener('beforeinstallprompt', (e) => { 
+    e.preventDefault(); 
+    deferredPrompt = e; 
+});
+
+function installApp() { 
+    // 1. Check if they are ALREADY using the installed app (Standalone mode)
+    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+        return showToast("✅ You are already using the installed PWA.");
+    }
+    
+    // 2. If Android/Chrome gives us the prompt, use it
+    if (deferredPrompt) { 
+        deferredPrompt.prompt(); 
+        deferredPrompt.userChoice.then((choiceResult) => { 
+            deferredPrompt = null; 
+        }); 
+    } 
+    // 3. Apple/iOS completely blocks deferredPrompt, give manual instructions
+    else if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) { 
+        showToast("🍎 iOS: Tap the 'Share' icon at the bottom, then 'Add to Home Screen'."); 
+    } 
+    // 4. Fallback for PC or browsers that hide the prompt
+    else { 
+        showToast("⚠️ Cannot install automatically. Please use your browser's menu (⋮) -> 'Install App'."); 
+    } 
+}
 window.activateSoftware = activateSoftware; window.loginAsStaff = loginAsStaff; window.loginAsAdmin = loginAsAdmin;
 window.selectPayment = selectPayment; window.confirmCheckout = confirmCheckout; window.saveEditedOrder = saveEditedOrder;
 window.switchTab = switchTab; window.installApp = installApp; window.lockSystem = lockSystem;
