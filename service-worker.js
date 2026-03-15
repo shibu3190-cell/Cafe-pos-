@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cafe-pos-cache-v18'; 
+const CACHE_NAME = 'cafe-pos-cache-v999'; 
 const urlsToCache = [
     './',
     './index.html',
@@ -10,35 +10,31 @@ const urlsToCache = [
 ];
 
 self.addEventListener('install', event => {
+    self.skipWaiting(); // Forces the new service worker to activate immediately
     event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then(cache => {
-                console.log('Opened cache');
-                return cache.addAll(urlsToCache);
-            })
-    );
-});
-
-self.addEventListener('fetch', event => {
-    event.respondWith(
-        caches.match(event.request)
-            .then(response => {
-                return response || fetch(event.request);
-            })
+        caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
     );
 });
 
 self.addEventListener('activate', event => {
-    const cacheWhitelist = [CACHE_NAME];
     event.waitUntil(
         caches.keys().then(cacheNames => {
             return Promise.all(
                 cacheNames.map(cacheName => {
-                    if (cacheWhitelist.indexOf(cacheName) === -1) {
-                        return caches.delete(cacheName);
+                    if (cacheName !== CACHE_NAME) {
+                        return caches.delete(cacheName); // Deletes all old caches
                     }
                 })
             );
+        }).then(() => self.clients.claim())
+    );
+});
+
+// ✨ FIX: "Network-First" Strategy ✨
+self.addEventListener('fetch', event => {
+    event.respondWith(
+        fetch(event.request).catch(() => {
+            return caches.match(event.request);
         })
     );
 });
