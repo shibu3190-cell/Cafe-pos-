@@ -401,5 +401,17 @@
     </script>
     
     <script src="app.js?v=999"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for(let registration of registrations) {
+                    registration.unregister(); // Kills the old stubborn service worker
+                }
+            });
+        }
+        caches.keys().then(function(names) {
+            for (let name of names) caches.delete(name); // Wipes the old saved files
+        });
+    </script>
 </body>
 </html>
