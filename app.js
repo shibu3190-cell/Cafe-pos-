@@ -411,15 +411,15 @@ function editMenuItem(id) {
 }
 function deleteMenuItem(id) { if(confirm("Delete this item permanently?")) { menuItems = menuItems.filter(item => item.id !== id); persistMenu(); renderMenuUI(); showToast("Deleted."); } }
 
-// ✨ 6. AI SMART MENU ENGINE (Free Google Gemini Vision) ✨
+// ✨ 6. AI SMART MENU ENGINE (With Advanced Error Handling & Auto-Cleaning) ✨
 let pendingAiMenu = null;
 
 async function processAIMenu(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // We use the same settings field, just pasting the Google key instead!
-    const apiKey = shopProfile.openAiKey;
+    // Make sure to trim any accidental spaces from the API key
+    const apiKey = shopProfile.openAiKey ? shopProfile.openAiKey.trim() : "";
     if (!apiKey) {
         showToast("⚠️ Please enter your Gemini API Key in Settings first.");
         return;
@@ -432,44 +432,49 @@ async function processAIMenu(event) {
 
     try {
         let base64Data = "";
-        let mimeType = file.type;
+        let mimeType = file.type || 'image/jpeg';
 
         // Handle PDF via PDF.js OR regular Image
         if (file.type === "application/pdf") {
-            if (!window.pdfjsLib) throw new Error("PDF.js library not loaded.");
+            if (!window.pdfjsLib) throw new Error("PDF reader library failed to load.");
             
             const fileReader = new FileReader();
             base64Data = await new Promise((resolve, reject) => {
                 fileReader.onload = async function() {
-                    const typedarray = new Uint8Array(this.result);
-                    const pdf = await pdfjsLib.getDocument(typedarray).promise;
-                    const page = await pdf.getPage(1); 
-                    
-                    const viewport = page.getViewport({scale: 1.5});
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    canvas.height = viewport.height;
-                    canvas.width = viewport.width;
-                    
-                    await page.render({canvasContext: ctx, viewport: viewport}).promise;
-                    mimeType = 'image/jpeg';
-                    resolve(canvas.toDataURL(mimeType));
+                    try {
+                        const typedarray = new Uint8Array(this.result);
+                        const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                        const page = await pdf.getPage(1); 
+                        
+                        const viewport = page.getViewport({scale: 1.5});
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
+                        
+                        await page.render({canvasContext: ctx, viewport: viewport}).promise;
+                        mimeType = 'image/jpeg';
+                        resolve(canvas.toDataURL(mimeType, 0.8)); // 0.8 compresses it slightly to prevent size errors
+                    } catch (err) {
+                        reject(new Error("Failed to extract data from PDF."));
+                    }
                 };
-                fileReader.onerror = reject;
+                fileReader.onerror = () => reject(new Error("Could not read the file."));
                 fileReader.readAsArrayBuffer(file);
             });
         } else {
-            base64Data = await new Promise((resolve) => {
+            // It's an image
+            base64Data = await new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = () => reject(new Error("Could not read the image file."));
                 reader.readAsDataURL(file);
             });
         }
 
-        // Gemini requires the pure base64 string without the data URI prefix
         const base64Clean = base64Data.split(',')[1];
 
-        // Call Google Gemini API (Free Tier)
+        // Call Google Gemini API
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: {
@@ -478,7 +483,7 @@ async function processAIMenu(event) {
             body: JSON.stringify({
                 contents: [{
                     parts: [
-                        { text: `You are an expert POS menu extraction assistant. Read the provided menu. Extract Categories, Items, Prices, GST percentages (if visible, otherwise output 5), and Variants (e.g. Small/Large). If an item has variants with different prices, create a separate item for each variant (e.g., "Cappuccino - Small"). Output strictly as a JSON object in this exact format, with no markdown formatting: { "categories": [ { "name": "CategoryName", "items": [ { "name": "ItemName", "price": 120, "gst": 5 } ] } ] }` },
+                        { text: `You are an expert POS menu extraction assistant. Read the provided menu. Extract Categories, Items, Prices, GST percentages (if visible, otherwise output 5), and Variants (e.g. Small/Large). If an item has variants with different prices, create a separate item for each variant. Output strictly as a JSON object in this exact format: { "categories": [ { "name": "CategoryName", "items": [ { "name": "ItemName", "price": 120, "gst": 5 } ] } ] }` },
                         {
                             inline_data: {
                                 mime_type: mimeType,
@@ -488,7 +493,6 @@ async function processAIMenu(event) {
                     ]
                 }],
                 generationConfig: {
-                    // Force Gemini to always return perfectly formatted JSON
                     response_mime_type: "application/json" 
                 }
             })
@@ -496,13 +500,30 @@ async function processAIMenu(event) {
 
         const data = await response.json();
 
+        // Check if Google actively rejected the API Key or Image
         if (data.error) {
-            throw new Error(data.error.message);
+            throw new Error("API Error: " + data.error.message);
         }
 
-        // Parse the JSON response directly from Gemini
-        const rawResponse = data.candidates[0].content.parts[0].text.trim();
-        pendingAiMenu = JSON.parse(rawResponse);
+        if (!data.candidates || data.candidates.length === 0) {
+            throw new Error("AI returned an empty response.");
+        }
+
+        let rawResponse = data.candidates[0].content.parts[0].text.trim();
+        
+        // ✨ FIX: Vigorously strip out any markdown formatting the AI might sneak in
+        rawResponse = rawResponse.replace(/```json/gi, '').replace(/```/g, '').trim();
+        
+        try {
+            pendingAiMenu = JSON.parse(rawResponse);
+        } catch (parseError) {
+            console.error("Raw AI Output:", rawResponse);
+            throw new Error("AI output was corrupted. Please try again.");
+        }
+
+        if (!pendingAiMenu || !pendingAiMenu.categories || pendingAiMenu.categories.length === 0) {
+            throw new Error("No menu items were detected in the image.");
+        }
 
         // Build the Tree Preview
         let treeHtml = "";
@@ -520,14 +541,14 @@ async function processAIMenu(event) {
 
     } catch (error) {
         console.error(error);
-        showToast("❌ Menu processing failed. Try a clearer image.");
+        // ✨ FIX: Now the toast will tell us EXACTLY what broke!
+        showToast("❌ " + error.message);
     } finally {
         btn.disabled = false;
         btn.innerText = "📁 Upload File";
         document.getElementById('aiMenuUploader').value = ''; 
     }
 }
-
 // ✨ 7. EXPENSES & REPORTS
 function addExpense() {
     const name = document.getElementById('expenseName').value; 
