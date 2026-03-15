@@ -1,0 +1,909 @@
+document.getElementById('topbarDate').innerText = new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+const ALERT_THRESHOLD_MS = 15 * 60 * 1000; 
+
+function getLocalISODate(dateObj = new Date()) {
+    const yyyy = dateObj.getFullYear();
+    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const dd = String(dateObj.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+function hashString(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        let char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; 
+    }
+    return hash.toString(16); 
+}
+
+const defaultPinHash = hashString("1234");
+let shopProfile = { name: "Royal Cafe", address: "", fssai: "", gstin: "", tableCount: 10, logo: "", adminPinHash: defaultPinHash, startInvoiceNo: 1001 };
+let menuItems = [ { id: 1, name: "Espresso", price: 80, category: "Tea/Coffee", gstRate: 5, trackStock: false, stockQty: 0 }, { id: 2, name: "Chicken Sandwich", price: 150, category: "Food", gstRate: 5, trackStock: false, stockQty: 0 } ];
+let orderHistory = [];
+let dailyExpenses = [];
+let tablesInfo = {}; 
+
+// ✨ NEW: Dynamic Categories
+let menuCategories = ["Tea/Coffee", "Cigarettes", "Food", "Other"];
+
+const myClientID = localStorage.getItem('cafeLicenseKey') || 'unregistered';
+let currentRole = null; 
+let activeTable = 1; 
+let activeCategory = "All"; 
+let editingMenuItemId = null;
+let editingExpenseId = null; 
+let syncQueue = [];
+
+// ✨ 1. ROBUST INDEXED-DB ENGINE (Race-Condition Proof) ✨
+const idb = {
+    db: null,
+    initPromise: null,
+    init: function() {
+        if (this.initPromise) return this.initPromise;
+        this.initPromise = new Promise((resolve, reject) => {
+            const req = indexedDB.open('CafePOS_DB', 1);
+            req.onupgradeneeded = (e) => {
+                if (!e.target.result.objectStoreNames.contains('store')) e.target.result.createObjectStore('store');
+            };
+            req.onsuccess = (e) => { this.db = e.target.result; resolve(); };
+            req.onerror = (e) => reject();
+        });
+        return this.initPromise;
+    },
+    get: async function(key) {
+        await this.init();
+        return new Promise((resolve) => {
+            const tx = this.db.transaction('store', 'readonly');
+            const req = tx.objectStore('store').get(key);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => resolve(null);
+        });
+    },
+    set: async function(key, val) {
+        await this.init();
+        const tx = this.db.transaction('store', 'readwrite');
+        tx.objectStore('store').put(val, key);
+    }
+};
+
+async function loadFromLocal() {
+    await idb.init();
+    const lProf = await idb.get('cafe_profile'); if (lProf) shopProfile = lProf;
+    const lMenu = await idb.get('cafe_menu'); if (lMenu) menuItems = lMenu;
+    const lCat = await idb.get('cafe_categories'); if(lCat) menuCategories = lCat; // Load custom categories
+    const lHist = await idb.get('cafe_history'); if (lHist) orderHistory = lHist;
+    const lExp = await idb.get('cafe_expenses'); if (lExp) dailyExpenses = lExp;
+    const lQueue = await idb.get('cafe_syncQueue'); if(lQueue) syncQueue = lQueue;
+    
+    const lTab = await idb.get('cafe_tables'); 
+    if (lTab) { tablesInfo = lTab; } 
+    else { for(let i = 1; i <= shopProfile.tableCount; i++) tablesInfo[i] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; }
+    
+    updateAllUI();
+}
+
+function saveToLocal() {
+    idb.set('cafe_profile', shopProfile);
+    idb.set('cafe_menu', menuItems);
+    idb.set('cafe_categories', menuCategories); // Save custom categories
+    idb.set('cafe_history', orderHistory);
+    idb.set('cafe_expenses', dailyExpenses);
+    idb.set('cafe_tables', tablesInfo);
+}
+
+function updateAllUI() {
+    updateProfileVisuals(); 
+    renderCategoryDropdown(); // Update category `<select>`
+    renderCategoryListUI(); // Show categories in Menu tab
+    renderTables(); 
+    renderMenuUI();
+    if(document.getElementById('pos').classList.contains('active')) updateCartUI();
+    if(document.getElementById('reports').classList.contains('active')) renderStatements();
+    if(document.getElementById('expenses').classList.contains('active')) renderExpensesUI();
+    
+    document.getElementById('shopNameInput').value = shopProfile.name || '';
+    document.getElementById('shopAddressInput').value = shopProfile.address || '';
+    document.getElementById('fssaiInput').value = shopProfile.fssai || '';
+    document.getElementById('gstinInput').value = shopProfile.gstin || '';
+    document.getElementById('tableCountInput').value = shopProfile.tableCount || 10;
+    document.getElementById('startInvoiceInput').value = shopProfile.startInvoiceNo || 1001; 
+}
+
+// ✨ CLOUD SYNC ✨
+window.addEventListener('firebaseLoaded', () => {
+    if(!navigator.onLine) return; 
+    const dataRef = window.firebaseRef(window.firebaseDB, `clients/${myClientID}`);
+    window.firebaseOnValue(dataRef, (snapshot) => {
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            shopProfile = data.profile || shopProfile;
+            if(!shopProfile.startInvoiceNo) shopProfile.startInvoiceNo = 1001;
+            menuItems = data.menu || [];
+            menuCategories = data.categories || menuCategories;
+            orderHistory = data.history || [];
+            dailyExpenses = data.expenses || [];
+            
+            let fetchedTables = data.tables || {};
+            for(let i = 1; i <= shopProfile.tableCount; i++) {
+                if(fetchedTables[i]) { tablesInfo[i] = fetchedTables[i]; if(!tablesInfo[i].items) tablesInfo[i].items = []; } 
+                else { tablesInfo[i] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; }
+            }
+            saveToLocal(); updateAllUI();
+        } else { persistAllToFirebase(); }
+    });
+});
+
+function persistAllToFirebase() { saveToLocal(); if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}`), { profile: shopProfile, menu: menuItems, categories: menuCategories, history: orderHistory, expenses: dailyExpenses, tables: tablesInfo }); }
+function persistTables() { saveToLocal(); if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/tables`), tablesInfo); }
+function persistMenu() { saveToLocal(); if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/menu`), menuItems); }
+function persistCategories() { saveToLocal(); if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/categories`), menuCategories); }
+function persistExpensesFirebase() { saveToLocal(); if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/expenses`), dailyExpenses); }
+function persistHistoryFirebase() { saveToLocal(); if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/history`), orderHistory); }
+function persistProfile() { saveToLocal(); if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/profile`), shopProfile); }
+
+function updateConnectionStatus() {
+    const badge = document.getElementById('offlineBadge');
+    if (navigator.onLine) {
+        badge.style.display = 'none';
+        if (syncQueue.length > 0) processSyncQueue();
+        persistAllToFirebase(); 
+        showToast("🌐 Online: Synced with Cloud");
+    } else {
+        badge.style.display = 'inline-block';
+        showToast("⚠️ Offline: Saving data locally");
+    }
+}
+window.addEventListener('online', updateConnectionStatus);
+window.addEventListener('offline', updateConnectionStatus);
+
+let isSyncing = false;
+function pushToGoogleSheetsQueue(action, payloadData) {
+    syncQueue.push({ action: action, data: payloadData });
+    idb.set('cafe_syncQueue', syncQueue);
+    processSyncQueue();
+}
+
+async function processSyncQueue() {
+    if (isSyncing || syncQueue.length === 0 || !navigator.onLine) return;
+    isSyncing = true;
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbyZiNTkt5uHGhAy9efNz-6bKYw41YrMbM4CBnuAFTTxJU_ubGpF4VnDuj6zS73NlA3S2w/exec';
+    while (syncQueue.length > 0) {
+        const item = syncQueue[0];
+        try {
+            await fetch(scriptURL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: item.action, clientId: myClientID, data: item.data }) });
+            syncQueue.shift(); idb.set('cafe_syncQueue', syncQueue);
+        } catch (e) { break; }
+    }
+    isSyncing = false;
+}
+
+// ✨ DEVICE INIT ✨
+function getOrCreateDeviceId() {
+    let deviceId = localStorage.getItem('cafeDeviceId');
+    if (!deviceId) {
+        deviceId = 'TERM-' + Math.random().toString(36).substr(2, 9).toUpperCase() + '-' + Math.floor(Date.now() / 1000).toString(36).toUpperCase();
+        localStorage.setItem('cafeDeviceId', deviceId);
+    }
+    return deviceId;
+}
+
+async function activateSoftware() {
+    if(!navigator.onLine) return alert("You must be online to activate the software.");
+    const enteredKey = document.getElementById('activationKeyInput').value.trim().toUpperCase();
+    if (!enteredKey) return showToast("Please enter a key.");
+    const btn = document.querySelector('#activationOverlay .btn');
+    btn.innerText = "⏳ Verifying & Locking Device..."; btn.disabled = true;
+
+    const deviceId = getOrCreateDeviceId(); 
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbyZiNTkt5uHGhAy9efNz-6bKYw41YrMbM4CBnuAFTTxJU_ubGpF4VnDuj6zS73NlA3S2w/exec';
+    try {
+        const response = await fetch(`${scriptURL}?action=verifyKey&key=${enteredKey}&deviceId=${deviceId}`);
+        const data = await response.json();
+        if (data.valid) {
+            localStorage.setItem('cafeSoftwareActivated', 'true'); 
+            localStorage.setItem('cafeActivationDate', Date.now().toString()); 
+            localStorage.setItem('cafeLicenseKey', enteredKey); 
+            alert(`Welcome, ${data.clientName}! License Activated & Locked to this Device.`); 
+            location.reload(); 
+        } else { alert(data.message); btn.innerText = "Verify & Activate"; btn.disabled = false; }
+    } catch (e) { alert("Network Error."); btn.innerText = "Verify & Activate"; btn.disabled = false; }
+}
+
+async function performRemoteLicenseCheck() {
+    const savedKey = localStorage.getItem('cafeLicenseKey');
+    if(!savedKey || !navigator.onLine) return;
+    const deviceId = getOrCreateDeviceId();
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbyZiNTkt5uHGhAy9efNz-6bKYw41YrMbM4CBnuAFTTxJU_ubGpF4VnDuj6zS73NlA3S2w/exec';
+    try {
+        const response = await fetch(`${scriptURL}?action=verifyKey&key=${savedKey}&deviceId=${deviceId}`);
+        const data = await response.json();
+        if (!data.valid) {
+            localStorage.removeItem('cafeSoftwareActivated'); localStorage.removeItem('cafeActivationDate'); localStorage.removeItem('cafeLicenseKey');
+            alert("⚠️ SECURITY ALERT ⚠️\n\n" + data.message); location.reload(); 
+        }
+    } catch (e) { console.log("Background check skipped."); }
+}
+
+window.onload = async function() {
+    document.getElementById('displayDeviceId').value = getOrCreateDeviceId();
+    
+    await loadFromLocal();
+    if (!navigator.onLine) document.getElementById('offlineBadge').style.display = 'inline-block';
+
+    const isAct = localStorage.getItem('cafeSoftwareActivated');
+    const actDate = localStorage.getItem('cafeActivationDate');
+    
+    if (!isAct || !actDate || myClientID === 'unregistered') {
+        document.getElementById('activationOverlay').style.display = 'flex'; return; 
+    }
+    if ((Date.now() - parseInt(actDate)) / (1000 * 60 * 60 * 24) > 200) {
+        localStorage.removeItem('cafeSoftwareActivated'); localStorage.removeItem('cafeActivationDate'); localStorage.removeItem('cafeLicenseKey');
+        alert("Your license has expired."); document.getElementById('activationOverlay').style.display = 'flex'; return; 
+    } else {
+        document.getElementById('activationOverlay').style.display = 'none';
+        if(currentRole === null) document.getElementById('loginOverlay').style.display = 'flex';
+        if(navigator.onLine) performRemoteLicenseCheck();
+    }
+    document.getElementById('reportDateSelect').value = getLocalISODate(); 
+    checkDailyReset(); processSyncQueue(); renderCategoryFilters(); 
+}
+
+function checkDailyReset() {
+    const today = new Date().toLocaleDateString();
+    if (localStorage.getItem('cafeLastRunDate') && localStorage.getItem('cafeLastRunDate') !== today) {
+        for(let i = 1; i <= shopProfile.tableCount; i++) tablesInfo[i] = { items: [], status: 'empty', savedTime: null, lastReminder: null };
+        persistTables(); showToast("New day started! Tables reset.");
+    }
+    localStorage.setItem('cafeLastRunDate', today);
+}
+
+function factoryReset() {
+    if(prompt("Type 'DELETE' in all caps to confirm:") === "DELETE") {
+        if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}`), null);
+        localStorage.clear(); 
+        indexedDB.deleteDatabase('CafePOS_DB');
+        location.reload(); 
+    }
+}
+
+function loginAsStaff() { currentRole = 'staff'; document.getElementById('loginOverlay').style.display = 'none'; enforcePermissions(); showToast("Logged in as Staff"); }
+function loginAsAdmin() {
+    if (hashString(document.getElementById('adminPinInput').value) === shopProfile.adminPinHash) {
+        currentRole = 'admin'; document.getElementById('loginOverlay').style.display = 'none'; document.getElementById('adminPinInput').value = ''; enforcePermissions(); showToast("Admin Access Granted");
+    } else { showToast("Incorrect PIN!"); }
+}
+function lockSystem() { currentRole = null; document.getElementById('loginOverlay').style.display = 'flex'; switchTab('pos'); enforcePermissions(); }
+function enforcePermissions() { ['nav-menu', 'nav-expenses', 'nav-reports', 'nav-settings'].forEach(id => currentRole === 'staff' ? document.getElementById(id).classList.add('locked') : document.getElementById(id).classList.remove('locked')); }
+function switchTab(tabId) {
+    if (currentRole === 'staff' && tabId !== 'pos') return showToast("Admin access required.");
+    document.querySelectorAll('.view, .nav-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active'); document.getElementById('nav-' + tabId).classList.add('active');
+    if(tabId === 'reports') renderStatements(); 
+}
+
+function updateProfileVisuals() {
+    document.getElementById('displayShopName').innerText = shopProfile.name;
+    document.querySelector('.topbar-title').childNodes[0].nodeValue = shopProfile.name + " Terminal ";
+    document.getElementById('printShopName').innerText = shopProfile.name;
+    document.getElementById('printShopAddress').innerText = shopProfile.address;
+    document.getElementById('printFssai').innerText = shopProfile.fssai ? `FSSAI: ${shopProfile.fssai}` : "";
+    document.getElementById('printGstin').innerText = shopProfile.gstin ? `GSTIN: ${shopProfile.gstin}` : "";
+    if (shopProfile.logo) { document.getElementById('sidebarLogo').src = shopProfile.logo; document.getElementById('sidebarLogo').style.display = 'block'; document.getElementById('printLogo').src = shopProfile.logo; document.getElementById('printLogo').style.display = 'block'; }
+}
+function loadLogo(event) { const file = event.target.files[0]; if (file) { const reader = new FileReader(); reader.onload = e => { shopProfile.logo = e.target.result; updateProfileVisuals(); persistProfile(); }; reader.readAsDataURL(file); } }
+function saveSettings() {
+    shopProfile.name = document.getElementById('shopNameInput').value; shopProfile.address = document.getElementById('shopAddressInput').value;
+    shopProfile.fssai = document.getElementById('fssaiInput').value; shopProfile.gstin = document.getElementById('gstinInput').value;
+    shopProfile.tableCount = parseInt(document.getElementById('tableCountInput').value);
+    const newStartNo = parseInt(document.getElementById('startInvoiceInput').value);
+    if(newStartNo) shopProfile.startInvoiceNo = newStartNo;
+    if(document.getElementById('adminPinSetup').value.length >= 4) { shopProfile.adminPinHash = hashString(document.getElementById('adminPinSetup').value); document.getElementById('adminPinSetup').value = ''; }
+    for(let i = 1; i <= shopProfile.tableCount; i++) if(!tablesInfo[i]) tablesInfo[i] = { items: [], status: 'empty', savedTime: null, lastReminder: null };
+    persistProfile(); persistTables(); showToast("Settings Saved!"); updateProfileVisuals();
+}
+
+// ✨ DYNAMIC CATEGORY FUNCTIONS ✨
+function renderCategoryDropdown() {
+    const select = document.getElementById('newItemCategory');
+    select.innerHTML = menuCategories.map(c => `<option value="${c}">${c}</option>`).join('');
+}
+
+function renderCategoryFilters() { 
+    document.getElementById('categoryFiltersUI').innerHTML = ''; 
+    ["All", ...menuCategories].forEach(cat => { 
+        document.getElementById('categoryFiltersUI').innerHTML += `<div class="cat-chip ${cat === activeCategory ? 'active' : ''}" onclick="filterMenu('${cat}')">${cat}</div>`; 
+    }); 
+}
+
+function renderCategoryListUI() {
+    const container = document.getElementById('categoryListUI');
+    container.innerHTML = menuCategories.map(c => `<span class="cat-chip" style="display:inline-flex; align-items:center; gap:8px;">${c} <b style="color:var(--danger); cursor:pointer; font-size:16px;" onclick="deleteCategory('${c}')">×</b></span>`).join('');
+}
+
+function addCategory() {
+    const cat = document.getElementById('newCategoryName').value.trim();
+    if(cat && !menuCategories.includes(cat)) {
+        menuCategories.push(cat);
+        document.getElementById('newCategoryName').value = '';
+        persistCategories(); 
+        renderCategoryDropdown();
+        renderCategoryFilters();
+        renderCategoryListUI();
+        showToast("Category added!");
+    } else if (menuCategories.includes(cat)) {
+        showToast("Category already exists.");
+    }
+}
+
+function deleteCategory(cat) {
+    if(confirm(`Delete category "${cat}"?`)) {
+        menuCategories = menuCategories.filter(c => c !== cat);
+        if(activeCategory === cat) activeCategory = "All";
+        persistCategories();
+        renderCategoryDropdown();
+        renderCategoryFilters();
+        renderCategoryListUI();
+        renderMenuUI();
+        showToast("Category deleted.");
+    }
+}
+
+function filterMenu(category) { activeCategory = category; renderCategoryFilters(); renderMenuUI(); }
+
+function renderMenuUI() {
+    const posGrid = document.getElementById('menuGridUI'); posGrid.innerHTML = '';
+    const searchText = (document.getElementById('menuSearchInput').value || '').toLowerCase();
+    let filteredMenu = activeCategory === "All" ? menuItems : menuItems.filter(i => i.category === activeCategory);
+    if (searchText) filteredMenu = filteredMenu.filter(i => i.name.toLowerCase().includes(searchText));
+
+    filteredMenu.forEach(item => {
+        let stockBadge = '';
+        if(item.trackStock) {
+            const isLow = item.stockQty <= 5;
+            stockBadge = `<div class="stock-badge ${isLow ? 'low' : ''}">${item.stockQty} left</div>`;
+        }
+        posGrid.innerHTML += `<div class="menu-card" onclick="addToCart(${item.id})">${stockBadge}<div class="cat-label">${item.category}</div><div class="name">${item.name}</div><div class="price">₹${item.price}</div></div>`;
+    });
+    
+    document.getElementById('menuTableBody').innerHTML = menuItems.map(item => `
+        <tr>
+            <td style="font-weight: 600; color: var(--text-dark);">${item.name}</td><td>${item.category}</td><td style="color: var(--accent); font-weight: 800;">₹${item.price}</td><td>${item.gstRate}%</td>
+            <td><strong style="color: ${item.trackStock && item.stockQty <= 5 ? 'var(--danger)' : 'inherit'};">${item.trackStock ? item.stockQty : '∞'}</strong></td>
+            <td>
+                <button class="btn btn-outline" style="padding: 6px 10px; font-size: 13px;" onclick="editMenuItem(${item.id})">Edit</button>
+                <button class="btn btn-danger" style="padding: 6px 10px; font-size: 13px;" onclick="deleteMenuItem(${item.id})">Del</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function addMenuItem() {
+    const name = document.getElementById('newItemName').value; 
+    const price = parseFloat(document.getElementById('newItemPrice').value); // ✨ FIX: Preserves Decimals
+    const category = document.getElementById('newItemCategory').value; 
+    const gstRate = parseFloat(document.getElementById('newItemGst').value) || 0; 
+    const trackStock = document.getElementById('newItemTrackStock').checked; 
+    const stockQty = parseInt(document.getElementById('newItemStock').value) || 0;
+
+    if(name && price) { 
+        if (editingMenuItemId) {
+            const index = menuItems.findIndex(i => i.id === editingMenuItemId);
+            if(index > -1) menuItems[index] = { id: editingMenuItemId, name, category, price, gstRate, trackStock, stockQty };
+            editingMenuItemId = null; document.getElementById('addMenuBtn').innerText = "+ Save to Menu"; document.getElementById('menuFormTitle').innerText = "Add New Menu Item"; showToast("Item updated!");
+        } else { menuItems.push({ id: Date.now(), name, category, price, gstRate, trackStock, stockQty }); showToast("Item added!"); }
+        
+        document.getElementById('newItemName').value = ''; document.getElementById('newItemPrice').value = ''; 
+        document.getElementById('newItemTrackStock').checked = false; document.getElementById('newItemStock').style.display = 'none'; document.getElementById('newItemStock').value = '';
+        persistMenu(); renderMenuUI();
+    } else { showToast("Name and Price required."); }
+}
+
+function editMenuItem(id) {
+    const item = menuItems.find(i => i.id === id);
+    if(item) {
+        document.getElementById('newItemName').value = item.name; document.getElementById('newItemCategory').value = item.category;
+        document.getElementById('newItemPrice').value = item.price; document.getElementById('newItemGst').value = item.gstRate;
+        document.getElementById('newItemTrackStock').checked = item.trackStock || false; document.getElementById('newItemStock').style.display = item.trackStock ? 'block' : 'none'; document.getElementById('newItemStock').value = item.stockQty || '';
+        editingMenuItemId = id; document.getElementById('menuFormTitle').innerText = "Edit Menu Item"; document.getElementById('addMenuBtn').innerText = "💾 Update Item"; window.scrollTo(0,0); 
+    }
+}
+function deleteMenuItem(id) { if(confirm("Delete this item permanently?")) { menuItems = menuItems.filter(item => item.id !== id); persistMenu(); renderMenuUI(); showToast("Deleted."); } }
+
+// ✨ EXPENSES ✨
+function addExpense() {
+    const name = document.getElementById('expenseName').value; 
+    const cost = parseFloat(document.getElementById('expenseCost').value); // ✨ FIX: Preserves Decimals
+    
+    if(name && cost) { 
+        if (editingExpenseId) {
+            const index = dailyExpenses.findIndex(e => e.id === editingExpenseId);
+            if(index > -1) { dailyExpenses[index].name = name; dailyExpenses[index].cost = cost; }
+            editingExpenseId = null; document.getElementById('addExpenseBtn').innerText = "- Record"; showToast("Expense updated.");
+        } else {
+            const newExpense = { id: Date.now(), date: new Date().toLocaleDateString(), filterDate: getLocalISODate(), time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), name: name, cost: cost };
+            dailyExpenses.unshift(newExpense); pushToGoogleSheetsQueue('addExpense', newExpense); showToast("Expense recorded."); 
+        }
+        document.getElementById('expenseName').value = ''; document.getElementById('expenseCost').value = ''; 
+        persistExpensesFirebase(); renderExpensesUI(); 
+    } else { showToast("Please enter Item Name and Cost."); }
+}
+
+function editExpense(id) {
+    const exp = dailyExpenses.find(e => e.id === id);
+    if(exp) { document.getElementById('expenseName').value = exp.name; document.getElementById('expenseCost').value = exp.cost; editingExpenseId = id; document.getElementById('addExpenseBtn').innerText = "💾 Update"; window.scrollTo(0,0); }
+}
+
+function deleteExpense(id) {
+    if(confirm("Are you sure you want to delete this expense?")) { dailyExpenses = dailyExpenses.filter(e => e.id !== id); persistExpensesFirebase(); renderExpensesUI(); showToast("Expense deleted."); }
+}
+
+function renderExpensesUI() { 
+    document.getElementById('expensesTableBody').innerHTML = dailyExpenses.map((exp, index) => {
+        if(!exp.id) exp.id = Date.now() + index; 
+        return `<tr><td style="color: var(--text-muted);">${exp.time}</td><td style="font-weight: 600; color: var(--text-dark);">${exp.name}</td><td style="color: var(--danger); font-weight: 800;">-₹${exp.cost}</td><td><button class="btn btn-outline" style="padding: 6px 10px; font-size: 12px; margin-right: 5px;" onclick="editExpense(${exp.id})">Edit</button><button class="btn btn-danger" style="padding: 6px 10px; font-size: 12px;" onclick="deleteExpense(${exp.id})">Del</button></td></tr>`;
+    }).join(''); 
+}
+
+function renderStatements() {
+    const dateInput = document.getElementById('reportDateSelect').value; if (!dateInput) return; 
+    const fallbackDateStr = new Date(dateInput.split('-')[0], dateInput.split('-')[1] - 1, dateInput.split('-')[2]).toLocaleDateString();
+
+    const filteredOrders = orderHistory.filter(order => order.filterDate === dateInput || order.filterDate === fallbackDateStr || (order.date && order.date.split(',')[0] === fallbackDateStr) || (order.date && order.date.startsWith(fallbackDateStr)));
+    const filteredExpenses = dailyExpenses.filter(exp => exp.filterDate === dateInput || exp.date === fallbackDateStr || !exp.date);
+
+    const totalSales = filteredOrders.reduce((sum, order) => sum + order.amount, 0); const totalExpenses = filteredExpenses.reduce((sum, exp) => sum + exp.cost, 0); const netProfit = totalSales - totalExpenses;
+    
+    document.getElementById('statSales').innerText = `₹${totalSales.toFixed(2)}`; document.getElementById('statExpenses').innerText = `₹${totalExpenses.toFixed(2)}`; 
+    document.getElementById('statProfit').innerText = `₹${netProfit.toFixed(2)}`; document.getElementById('statProfit').style.color = (netProfit < 0) ? '#ffcccb' : 'white';
+    
+    document.getElementById('historyTableBody').innerHTML = filteredOrders.map(order => {
+        let tableStr = String(order.table); let badge = tableStr === 'Takeaway' ? '🛍️ Takeaway' : (tableStr.includes('Table') ? tableStr.replace('Table ', 'T-') : 'T-' + tableStr);
+        let payBadge = order.paymentMode ? `<br><span style="font-size:10px; color:var(--text-muted);">${order.paymentMode}</span>` : '';
+        return `<tr><td style="font-size: 13px; color: var(--text-muted);">${order.date.split(',')[1] || order.date}</td><td style="font-weight: 800; color: var(--accent);">#${order.billNo || '-'}</td><td><strong>${badge}</strong>${payBadge}</td><td style="font-size: 13px;">${order.items || '-'}</td><td style="color: var(--success); font-weight: 800;">+₹${order.amount.toFixed(2)}</td><td><button class="btn btn-outline" style="padding: 6px 12px; font-size: 12px; margin-right: 5px;" onclick="openEditOrderModal(${order.id})">Edit</button><button class="btn" style="padding: 6px 12px; font-size: 12px; background: #64748b;" onclick="reprintReceipt(${order.id})">Print</button></td></tr>`;
+    }).join('');
+    if (dateInput === getLocalISODate()) renderExpensesUI();
+}
+
+function openEditOrderModal(id) {
+    const order = orderHistory.find(o => o.id === id); if(!order) return;
+    document.getElementById('editOrderId').value = id; document.getElementById('editBillNoDisplay').innerText = order.billNo || 'N/A';
+    document.getElementById('editOrderType').value = order.orderType || (order.table === 'Takeaway' ? 'Takeaway' : 'Dine-In');
+    selectPayment(order.paymentMode || 'Cash', 'edit'); document.getElementById('editCustomerName').value = order.customer || ''; document.getElementById('editBillerName').value = order.biller || '';
+    document.getElementById('editOrderModal').style.display = 'flex';
+}
+
+function saveEditedOrder() {
+    const id = parseInt(document.getElementById('editOrderId').value); const order = orderHistory.find(o => o.id === id);
+    if(order) {
+        order.orderType = document.getElementById('editOrderType').value; order.paymentMode = document.getElementById('editSelectedPaymentMode').value;
+        order.customer = document.getElementById('editCustomerName').value.trim(); order.biller = document.getElementById('editBillerName').value.trim();
+        if(order.orderType === 'Takeaway') order.table = 'Takeaway';
+        persistHistoryFirebase(); renderStatements(); showToast("Bill updated."); document.getElementById('editOrderModal').style.display = 'none';
+    }
+}
+
+function exportHistoryToExcel() {
+    if(orderHistory.length === 0) return showToast("No sales data to export!");
+    const dateInput = document.getElementById('reportDateSelect').value; const fallbackDateStr = new Date(dateInput.split('-')[0], dateInput.split('-')[1] - 1, dateInput.split('-')[2]).toLocaleDateString();
+    const filteredOrders = orderHistory.filter(order => order.filterDate === dateInput || order.filterDate === fallbackDateStr || (order.date && order.date.split(',')[0] === fallbackDateStr) || (order.date && order.date.startsWith(fallbackDateStr)));
+    if(filteredOrders.length === 0) return showToast("No data for this date.");
+
+    let csvContent = "Date,Bill No,Table/Type,Payment,Customer,Biller,Items Ordered,Amount (INR)\n";
+    filteredOrders.forEach(order => {
+        let itemsEscaped = `"${(order.items || '').replace(/"/g, '""')}"`; let tableStr = String(order.table); let tableType = tableStr === 'Takeaway' ? 'Takeaway' : (tableStr.includes('Table') ? tableStr : `Table ${tableStr}`);
+        csvContent += `"${order.date}","${order.billNo || ''}","${tableType}","${order.paymentMode || 'Cash'}","${order.customer || ''}","${order.biller || ''}",${itemsEscaped},${order.amount.toFixed(2)}\n`;
+    });
+    const link = document.createElement("a"); link.setAttribute("href", URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }))); link.setAttribute("download", `Sales_${dateInput}.csv`); link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+}
+
+function renderTables() {
+    const grid = document.getElementById('tableGridUI'); grid.innerHTML = '';
+    for(let i = 1; i <= shopProfile.tableCount; i++) {
+        const tInfo = tablesInfo[i]; let classes = 'table-btn';
+        if (tInfo.status === 'alert') classes += ' alert'; else if (tInfo.status === 'served') classes += ' served'; else if (tInfo.status === 'saved') classes += ' saved'; else if (tInfo.status === 'occupied') classes += ' occupied'; else if (tInfo.status === 'booked') classes += ' booked';
+        if (i === activeTable) classes += ' selected';
+        let amt = tInfo.items.length > 0 ? `<span class="amt">₹${tInfo.items.reduce((sum, item) => sum + (item.price * item.qty), 0).toFixed(2)}</span>` : (tInfo.status === 'booked' ? `<span class="amt">Rsrvd</span>` : "");
+        grid.innerHTML += `<div class="${classes}" onclick="selectTable(${i})">T-${i}${amt}</div>`;
+    }
+}
+function selectTable(num) { activeTable = num; document.getElementById('activeTableUI').innerText = num; renderTables(); updateCartUI(); }
+function bookTable() { let tInfo = tablesInfo[activeTable]; if(tInfo.items.length > 0) return showToast("Cannot reserve active table!"); tInfo.status = tInfo.status === 'booked' ? 'empty' : 'booked'; persistTables(); renderTables(); }
+
+function addToCart(itemId) {
+    let tInfo = tablesInfo[activeTable]; const menuItem = menuItems.find(m => m.id === itemId); if(!menuItem) return;
+    const existing = tInfo.items.find(i => i.id === itemId);
+    if (menuItem.trackStock && (existing ? existing.qty + 1 : 1) > menuItem.stockQty) return showToast(`Only ${menuItem.stockQty} left!`);
+    if(existing) existing.qty++; else tInfo.items.push({ id: menuItem.id, name: menuItem.name, price: menuItem.price, gstRate: menuItem.gstRate, qty: 1 });
+    if(tInfo.status === 'empty' || tInfo.status === 'booked') tInfo.status = 'occupied'; 
+    persistTables(); renderTables(); updateCartUI();
+}
+
+function modifyQty(itemId, delta) {
+    let tInfo = tablesInfo[activeTable]; const item = tInfo.items.find(i => i.id === itemId); const menuItem = menuItems.find(m => m.id === itemId);
+    if (item) {
+        if (delta > 0 && menuItem && menuItem.trackStock && (item.qty + delta) > menuItem.stockQty) return showToast(`Only ${menuItem.stockQty} left!`);
+        item.qty += delta; if(item.qty <= 0) tInfo.items = tInfo.items.filter(i => i.id !== itemId); 
+        if(tInfo.items.length === 0 && tInfo.status !== 'booked') { tInfo.status = 'empty'; tInfo.savedTime = null; tInfo.lastReminder = null; }
+        persistTables(); renderTables(); updateCartUI();
+    }
+}
+
+function updateCartUI() {
+    const cartDiv = document.getElementById('cartUI'); cartDiv.innerHTML = '';
+    let total = 0; let totalGstAmt = 0; let currentCart = tablesInfo[activeTable].items || [];
+    if (currentCart.length === 0) {
+        cartDiv.innerHTML = `<div style="text-align: center; color: var(--text-muted); margin-top: 40px; font-weight: 600;">Select items from the menu to start an order.</div>`;
+    } else {
+        currentCart.forEach((item) => {
+            let itemTotal = item.price * item.qty; total += itemTotal; 
+            let gst = item.gstRate || 0;
+            if (gst > 0) {
+                let basePrice = itemTotal / (1 + (gst / 100)); 
+                totalGstAmt += (itemTotal - basePrice);
+            }
+            cartDiv.innerHTML += `<div class="cart-item"><div class="cart-item-top"><span class="cart-item-name">${item.name}</span><span class="cart-item-price">₹${itemTotal.toFixed(2)}</span></div><div class="cart-item-bottom"><span class="cart-item-math">₹${item.price} each</span><div class="qty-pill"><button onclick="modifyQty(${item.id}, -1)">-</button><span>${item.qty}</span><button onclick="modifyQty(${item.id}, 1)">+</button></div></div></div>`;
+        });
+    }
+    document.getElementById('totalUI').innerText = total.toFixed(2); document.getElementById('gstBreakdownUI').innerText = totalGstAmt > 0 ? `Includes ₹${totalGstAmt.toFixed(2)} GST` : "No GST Applied";
+    cartDiv.scrollTop = cartDiv.scrollHeight;
+}
+
+// ✨ KITCHEN ORDER TICKET (KOT) ENGINE ✨
+function sendToKitchen() { 
+    let tInfo = tablesInfo[activeTable]; 
+    if(tInfo.items.length === 0) return showToast("Nothing to send!"); 
+    tInfo.status = 'saved'; persistTables(); renderTables(); 
+    
+    document.getElementById('kotTableNoDisplay').innerText = activeTable;
+    document.getElementById('kotModal').style.display = 'flex';
+}
+
+async function printKitchenTicket() {
+    const btn = document.querySelector('#kotModal .btn-warning');
+    btn.disabled = true;
+    btn.innerText = printCharacteristic ? "⏳ Printing KOT..." : "📄 Generating PDF KOT...";
+
+    let tInfo = tablesInfo[activeTable];
+    await sendKotToPrinter(activeTable, tInfo.items);
+    
+    document.getElementById('kotModal').style.display = 'none';
+    
+    btn.disabled = false;
+    btn.innerText = "🖨️ Print KOT";
+    showToast(`👨‍🍳 Table ${activeTable} KOT Processed.`);
+}
+
+async function sendKotToPrinter(tableNo, items) {
+    if (!printCharacteristic) {
+        showToast("⚠️ No BLE Printer found. Opening PDF Preview..."); 
+        document.getElementById('print-receipt').style.display = 'none';
+        document.getElementById('print-kot').style.display = 'block';
+
+        document.getElementById('printKotTableNo').innerText = tableNo;
+        document.getElementById('printKotTime').innerText = new Date().toLocaleTimeString();
+        let itemsHtml = '';
+        items.forEach(item => {
+            itemsHtml += `<div style="display:flex; justify-content:space-between; margin-bottom: 8px; border-bottom: 1px dashed #ccc; padding-bottom: 4px;"><span>${item.name}</span><span style="font-size:18px;">x${item.qty}</span></div>`;
+        });
+        document.getElementById('printKotItems').innerHTML = itemsHtml;
+
+        window.print();
+        setTimeout(() => { document.getElementById('print-kot').style.display = 'none'; }, 1000);
+        return;
+    }
+
+    const ESC = '\x1B'; const GS = '\x1D'; const INIT = ESC + '@'; 
+    const ALIGN_CENTER = ESC + 'a\x01'; const ALIGN_LEFT = ESC + 'a\x00'; 
+    const BOLD_ON = ESC + 'E\x01'; const BOLD_OFF = ESC + 'E\x00'; 
+    const DOUBLE_SIZE = GS + '!\x11'; const NORMAL_SIZE = GS + '!\x00'; 
+    const FEED_AND_CUT = '\x0A\x0A\x0A\x0A' + ESC + 'm'; 
+
+    let kotText = INIT;
+    kotText += ALIGN_CENTER + BOLD_ON + "KITCHEN TICKET\n" + BOLD_OFF;
+    kotText += "--------------------------------\n";
+    kotText += DOUBLE_SIZE + BOLD_ON + `TABLE: ${tableNo}\n` + NORMAL_SIZE + BOLD_OFF;
+    kotText += `Time: ${new Date().toLocaleTimeString()}\n`;
+    kotText += "--------------------------------\n";
+    kotText += ALIGN_LEFT;
+
+    items.forEach(item => {
+        kotText += DOUBLE_SIZE + `${item.qty}x ${item.name}\n` + NORMAL_SIZE;
+        kotText += "--------------------------------\n";
+    });
+
+    kotText += ALIGN_CENTER + "*** END OF KOT ***\n" + FEED_AND_CUT;
+
+    const encoder = new TextEncoder();
+    const payload = encoder.encode(kotText);
+    const CHUNK_SIZE = 100; 
+    try {
+        for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
+            const chunk = payload.slice(i, i + CHUNK_SIZE);
+            await printCharacteristic.writeValue(chunk);
+            await new Promise(resolve => setTimeout(resolve, 20)); 
+        }
+    } catch(e) { console.error(e); showToast("❌ KOT Print Failed."); }
+}
+
+function markServed() { let tInfo = tablesInfo[activeTable]; if(tInfo.items.length === 0) return showToast("Table empty!"); tInfo.status = 'served'; tInfo.lastReminder = Date.now(); persistTables(); renderTables(); showToast(`Table ${activeTable} served. Timer started.`); }
+setInterval(() => { const now = Date.now(); let needsSync = false; for(let i = 1; i <= shopProfile.tableCount; i++) { let tInfo = tablesInfo[i]; if(tInfo.status === 'served' || tInfo.status === 'alert') { if(tInfo.lastReminder && (now - tInfo.lastReminder) >= ALERT_THRESHOLD_MS) { tInfo.status = 'alert'; tInfo.lastReminder = now; needsSync = true; showToast(`⚠️ Table ${i} unpaid!`); } } } if(needsSync) { persistTables(); renderTables(); } }, 5000); 
+
+function selectPayment(mode, context) {
+    if(context === 'checkout') { document.getElementById('selectedPaymentMode').value = mode; document.querySelectorAll('#checkoutModal .pay-btn').forEach(b => b.classList.remove('selected')); document.getElementById('btnPay' + mode).classList.add('selected'); } 
+    else if (context === 'edit') { document.getElementById('editSelectedPaymentMode').value = mode; document.querySelectorAll('#editOrderModal .pay-btn').forEach(b => b.classList.remove('selected')); document.getElementById('editBtnPay' + mode).classList.add('selected'); }
+}
+
+function openCheckoutModal() {
+    let tInfo = tablesInfo[activeTable]; if(tInfo.items.length === 0) return showToast(`Table ${activeTable} is empty!`);
+    let total = tInfo.items.reduce((sum, item) => sum + (item.price * item.qty), 0);
+    document.getElementById('checkoutTotal').innerText = total.toFixed(2); document.getElementById('checkoutTableNoDisplay').innerText = activeTable; document.getElementById('checkoutTotalItems').innerText = tInfo.items.length;
+    document.getElementById('checkoutOrderType').value = "Dine-In"; selectPayment('Cash', 'checkout');
+    document.getElementById('checkoutCustomerName').value = ''; document.getElementById('checkoutBillerName').value = '';
+    document.getElementById('checkoutModal').style.display = 'flex';
+}
+
+// ✨ INSTANT CLEAR CHECKOUT ENGINE (With Double-Click Protection) ✨
+async function confirmCheckout() {
+    let tInfo = tablesInfo[activeTable]; 
+    if(!tInfo || tInfo.items.length === 0) return showToast(`Table ${activeTable} is empty!`);
+    
+    const payBtn = document.querySelector('#checkoutModal .btn-success');
+    payBtn.disabled = true;
+    payBtn.innerText = printCharacteristic ? "⏳ Printing Receipt..." : "📄 Generating PDF...";
+
+    document.getElementById('checkoutModal').style.display = 'none';
+    
+    let total = 0;
+    const itemNames = tInfo.items.map(i => `${i.name} (x${i.qty})`).join(', ');
+    tInfo.items.forEach(item => { total += (item.price * item.qty); });
+
+    const oType = document.getElementById('checkoutOrderType').value; const pMode = document.getElementById('selectedPaymentMode').value;
+    const cName = document.getElementById('checkoutCustomerName').value.trim(); const bName = document.getElementById('checkoutBillerName').value.trim();
+    const fullDateStr = new Date().toLocaleString(); const safeFilterDate = getLocalISODate();
+    const finalTableStr = oType === 'Takeaway' ? 'Takeaway' : `Table ${activeTable}`;
+
+    const currentStartNo = shopProfile.startInvoiceNo || 1001; const highestExistingBill = orderHistory.length > 0 ? Math.max(...orderHistory.map(o => o.billNo || 0)) : 0;
+    const generatedBillNo = Math.max(currentStartNo, highestExistingBill + 1);
+
+    const newOrder = { id: Date.now(), billNo: generatedBillNo, date: fullDateStr, filterDate: safeFilterDate, table: finalTableStr, orderType: oType, paymentMode: pMode, customer: cName, biller: bName, items: itemNames, rawItems: JSON.parse(JSON.stringify(tInfo.items)), amount: total };
+    
+    await sendEscPosToPrinter(newOrder);
+    
+    tInfo.items.forEach(cartItem => { const mItem = menuItems.find(m => m.id === cartItem.id); if (mItem && mItem.trackStock) { mItem.stockQty -= cartItem.qty; if (mItem.stockQty < 0) mItem.stockQty = 0; } });
+    persistMenu(); orderHistory.unshift(newOrder); persistHistoryFirebase(); 
+    tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); 
+    pushToGoogleSheetsQueue('addOrder', newOrder); renderTables(); updateCartUI();
+    showToast("✅ Payment recorded & Table cleared.");
+
+    payBtn.disabled = false;
+    payBtn.innerText = "🖨️ Pay & Print";
+}
+
+function clearTable() { if(confirm("Clear this entire order?")) { tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); renderTables(); updateCartUI(); } }
+function showToast(message) { const container = document.getElementById('toast-container'), toast = document.createElement('div'); toast.className = 'toast'; toast.innerHTML = `<span>🔔</span> ${message}`; container.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(-10px)'; toast.style.transition = 'all 0.3s ease'; setTimeout(() => toast.remove(), 300); }, 3000); }
+
+// ✨ ADVANCED ESC/POS BLUETOOTH ENGINE ✨
+async function getLogoBytes(base64Image) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
+            const maxWidth = 200; let width = img.width; let height = img.height;
+            if (width > maxWidth) { const ratio = maxWidth / width; width = maxWidth; height = height * ratio; }
+            width = Math.floor(width / 8) * 8; height = Math.floor(height);
+            canvas.width = width; canvas.height = height;
+            ctx.fillStyle = 'white'; ctx.fillRect(0, 0, width, height); ctx.drawImage(img, 0, 0, width, height);
+            const imgData = ctx.getImageData(0, 0, width, height).data; const widthBytes = width / 8;
+            const data = new Uint8Array(8 + (widthBytes * height));
+            data[0] = 0x1D; data[1] = 0x76; data[2] = 0x30; data[3] = 0x00;
+            data[4] = widthBytes & 0xFF; data[5] = (widthBytes >> 8) & 0xFF;
+            data[6] = height & 0xFF; data[7] = (height >> 8) & 0xFF;
+            let offset = 8;
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x += 8) {
+                    let byte = 0;
+                    for (let b = 0; b < 8; b++) {
+                        const idx = ((y * width) + x + b) * 4;
+                        const brightness = (imgData[idx] * 0.299 + imgData[idx + 1] * 0.587 + imgData[idx + 2] * 0.114);
+                        if (brightness < 128) byte |= (1 << (7 - b)); 
+                    }
+                    data[offset++] = byte;
+                }
+            }
+            resolve(data);
+        };
+        img.onerror = () => resolve(null); img.src = base64Image;
+    });
+}
+
+async function connectBluetoothPrinter() {
+    if (!navigator.bluetooth) return alert("Web Bluetooth is not supported on this browser (Try Chrome on Android/PC).");
+    try {
+        showToast("Searching for Bluetooth printers...");
+        bleDevice = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb', 'e7810a71-73ae-499d-8c15-faa9aef0c3f2', '49535343-fe7d-4ae5-8fa9-9fafd205e455'] });
+        bleDevice.addEventListener('gattserverdisconnected', () => { showToast("⚠️ Printer Disconnected."); printCharacteristic = null; document.getElementById('btnBleStatus').innerHTML = "📡 Pair BLE Printer"; });
+        bleServer = await bleDevice.gatt.connect();
+        const services = await bleServer.getPrimaryServices();
+        for (let service of services) {
+            const characteristics = await service.getCharacteristics();
+            for (let characteristic of characteristics) {
+                if (characteristic.properties.write || characteristic.properties.writeWithoutResponse) {
+                    printCharacteristic = characteristic; showToast("🖨️ Printer Connected Successfully!"); document.getElementById('btnBleStatus').innerHTML = "✅ Printer Connected"; return;
+                }
+            }
+        }
+        showToast("❌ Could not find a valid print service.");
+    } catch (error) { console.error(error); showToast("Bluetooth Connection Cancelled/Failed."); }
+}
+
+async function sendEscPosToPrinter(order) {
+    let gstSummary = {}; 
+
+    if (!printCharacteristic) {
+        showToast("⚠️ No BLE Printer found. Opening PDF Preview..."); 
+        document.getElementById('print-kot').style.display = 'none';
+        document.getElementById('print-receipt').style.display = 'block';
+
+        document.getElementById('printBillNo').innerText = order.billNo; document.getElementById('printDate').innerText = order.date;
+        if(order.orderType === 'Takeaway') { document.getElementById('printTableNoRow').style.display = 'none'; } else { document.getElementById('printTableNoRow').style.display = 'block'; document.getElementById('printTableNo').innerText = String(order.table).replace('Table ', ''); }
+        document.getElementById('printOrderType').innerText = order.orderType; document.getElementById('printPayMode').innerText = order.paymentMode;
+        if(order.customer) { document.getElementById('printCustomerRow').style.display = 'block'; document.getElementById('printCustomer').innerText = order.customer; } else { document.getElementById('printCustomerRow').style.display = 'none'; }
+        if(order.biller) { document.getElementById('printBillerRow').style.display = 'block'; document.getElementById('printBiller').innerText = order.biller; } else { document.getElementById('printBillerRow').style.display = 'none'; }
+        
+        document.getElementById('printItems').innerHTML = ''; 
+        
+        order.rawItems.forEach(item => { 
+            let itemTotal = item.price * item.qty; 
+            let gst = item.gstRate || 0; 
+            
+            if (gst > 0) {
+                let basePrice = itemTotal / (1 + (gst / 100)); 
+                let taxAmt = itemTotal - basePrice;
+                if(!gstSummary[gst]) gstSummary[gst] = { base: 0, tax: 0 };
+                // ✨ FIX: Floating point math fix
+                gstSummary[gst].base = Math.round((gstSummary[gst].base + basePrice) * 100) / 100;
+                gstSummary[gst].tax = Math.round((gstSummary[gst].tax + taxAmt) * 100) / 100;
+            }
+            document.getElementById('printItems').innerHTML += `<div class="print-row"><span>${item.name} x${item.qty}</span><span>${itemTotal.toFixed(2)}</span></div>`; 
+        });
+
+        if(document.getElementById('printSubtotal')) {
+            document.getElementById('printSubtotal').parentElement.style.display = 'none';
+            document.getElementById('printCgstAmt').parentElement.style.display = 'none';
+            document.getElementById('printSgstAmt').parentElement.style.display = 'none';
+        }
+
+        if(Object.keys(gstSummary).length > 0) {
+            let htmlGstContent = '<div class="print-line"></div><div style="font-weight:600; font-size:12px; margin-bottom:5px;">--- GST Breakdown ---</div>';
+            for(let rate in gstSummary) {
+                let base = gstSummary[rate].base.toFixed(2); let half = (gstSummary[rate].tax / 2).toFixed(2);
+                htmlGstContent += `<div style="font-size:11px; color:#444; margin-bottom:6px;"><div style="display:flex; justify-content:space-between;"><span>Taxable Value (${rate}%)</span><span>₹${base}</span></div><div style="display:flex; justify-content:space-between;"><span>CGST @ ${rate/2}%</span><span>₹${half}</span></div><div style="display:flex; justify-content:space-between;"><span>SGST @ ${rate/2}%</span><span>₹${half}</span></div></div>`;
+            }
+            document.getElementById('printItems').innerHTML += htmlGstContent;
+        }
+
+        document.getElementById('printTotal').innerText = `₹${order.amount.toFixed(2)}`;
+        window.print(); 
+
+        setTimeout(() => { document.getElementById('print-receipt').style.display = 'none'; }, 1000);
+        return;
+    }
+
+    const ESC = '\x1B'; const GS = '\x1D'; const INIT = ESC + '@'; 
+    const ALIGN_CENTER = ESC + 'a\x01'; const ALIGN_LEFT = ESC + 'a\x00'; 
+    const BOLD_ON = ESC + 'E\x01'; const BOLD_OFF = ESC + 'E\x00'; 
+    const DOUBLE_SIZE = GS + '!\x11'; const NORMAL_SIZE = GS + '!\x00'; 
+    const FEED_AND_CUT = '\x0A\x0A\x0A\x0A' + ESC + 'm'; 
+
+    let receiptText = INIT;
+    
+    receiptText += ALIGN_CENTER + DOUBLE_SIZE + BOLD_ON + shopProfile.name + '\n' + NORMAL_SIZE + BOLD_OFF;
+    if(shopProfile.address) receiptText += shopProfile.address + '\n';
+    if(shopProfile.fssai) receiptText += 'FSSAI: ' + shopProfile.fssai + '\n';
+    if(shopProfile.gstin && shopProfile.gstin.trim() !== "") receiptText += 'GSTIN: ' + shopProfile.gstin + '\n';
+    receiptText += '--------------------------------\n'; 
+    
+    receiptText += ALIGN_LEFT;
+    receiptText += BOLD_ON + 'Invoice: #' + (order.billNo || 'TEST') + '\n' + BOLD_OFF;
+    if(order.orderType !== 'Takeaway') receiptText += 'Table: ' + String(order.table).replace('Table ', '') + '\n';
+    receiptText += 'Date: ' + order.date + '\n';
+    receiptText += 'Type: ' + (order.orderType || 'Dine-In') + '\n';
+    receiptText += 'Payment: ' + (order.paymentMode || 'Cash') + '\n';
+    if(order.customer && order.customer.trim() !== "") receiptText += 'Customer: ' + order.customer + '\n';
+    if(order.biller && order.biller.trim() !== "") receiptText += 'Staff: ' + order.biller + '\n';
+    receiptText += '--------------------------------\n';
+
+    order.rawItems.forEach(item => {
+        let qtyName = `${item.qty}x ${item.name}`; 
+        let priceStr = (item.price * item.qty).toFixed(2);
+        
+        if (qtyName.length + priceStr.length > 31) {
+            receiptText += qtyName.substring(0, 32) + '\n'; 
+            receiptText += priceStr.padStart(32, ' ') + '\n'; 
+        } else {
+            receiptText += qtyName.padEnd(32 - priceStr.length, ' ') + priceStr + '\n';
+        }
+        
+        let itemTotal = item.price * item.qty; let gst = item.gstRate || 0; 
+        if (gst > 0) { 
+            let basePrice = itemTotal / (1 + (gst / 100)); 
+            let taxAmt = itemTotal - basePrice;
+            if(!gstSummary[gst]) gstSummary[gst] = { base: 0, tax: 0 };
+            gstSummary[gst].base = Math.round((gstSummary[gst].base + basePrice) * 100) / 100;
+            gstSummary[gst].tax = Math.round((gstSummary[gst].tax + taxAmt) * 100) / 100;
+        }
+    });
+
+    receiptText += '--------------------------------\n';
+    
+    if (Object.keys(gstSummary).length > 0) {
+        receiptText += ALIGN_CENTER + '--- GST BREAKDOWN ---\n' + ALIGN_LEFT;
+        for(let rate in gstSummary) {
+            let base = gstSummary[rate].base.toFixed(2);
+            let halfGst = (gstSummary[rate].tax / 2).toFixed(2);
+            
+            receiptText += `Taxable Value (${rate}%)`.padEnd(22, ' ') + base.padStart(10, ' ') + '\n';
+            receiptText += `CGST @ ${rate/2}%`.padEnd(22, ' ') + halfGst.padStart(10, ' ') + '\n';
+            receiptText += `SGST @ ${rate/2}%`.padEnd(22, ' ') + halfGst.padStart(10, ' ') + '\n';
+            receiptText += '\n';
+        }
+        receiptText += '--------------------------------\n';
+    }
+
+    receiptText += ALIGN_CENTER + DOUBLE_SIZE + BOLD_ON + `TOTAL: ${order.amount.toFixed(2)}\n` + NORMAL_SIZE + BOLD_OFF;
+    receiptText += '--------------------------------\n';
+    receiptText += ALIGN_CENTER + 'Thank You! Visit Again\n';
+    receiptText += FEED_AND_CUT;
+
+    const encoder = new TextEncoder();
+    const textData = encoder.encode(receiptText);
+    let payload = textData;
+
+    if (shopProfile.logo) {
+        const logoBytes = await getLogoBytes(shopProfile.logo);
+        if (logoBytes) {
+            const alignCenterCmd = new Uint8Array([0x1B, 0x61, 0x01]); 
+            const spacingCmd = new Uint8Array([0x0A]); 
+            payload = new Uint8Array(alignCenterCmd.length + logoBytes.length + spacingCmd.length + textData.length);
+            let offset = 0;
+            payload.set(alignCenterCmd, offset); offset += alignCenterCmd.length;
+            payload.set(logoBytes, offset); offset += logoBytes.length;
+            payload.set(spacingCmd, offset); offset += spacingCmd.length;
+            payload.set(textData, offset);
+        }
+    }
+
+    const CHUNK_SIZE = 100; 
+    try {
+        for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
+            const chunk = payload.slice(i, i + CHUNK_SIZE);
+            await printCharacteristic.writeValue(chunk);
+            await new Promise(resolve => setTimeout(resolve, 20)); 
+        }
+    } catch(e) { console.error(e); showToast("❌ Print Failed. Printer might be off."); }
+}
+
+function reprintReceipt(orderId) { const order = orderHistory.find(o => o.id === orderId); if (!order || !order.rawItems) return showToast("Cannot print old order details."); sendEscPosToPrinter(order); }
+function testThermalPrinter() { const dummyOrder = { billNo: 'TEST-999', date: new Date().toLocaleString(), orderType: 'Dine-In', paymentMode: 'Cash', amount: 270, rawItems: [ {name: "Standard Espresso", qty: 1, price: 80, gstRate: 5}, {name: "Water Bottle", qty: 2, price: 20, gstRate: 0} ] }; sendEscPosToPrinter(dummyOrder); }
+
+// ✨ PWA SERVICE WORKER ✨
+if ('serviceWorker' in navigator) { window.addEventListener('load', () => { navigator.serviceWorker.register('./service-worker.js').then(reg => console.log('SW Registered!')).catch(err => console.log('SW Failed:', err)); }); }
+let deferredPrompt; window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; });
+function installApp() { if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.then((choiceResult) => { deferredPrompt = null; }); } else { showToast("App is already installed."); } }
+
+// ✨ GLOBALLY EXPOSE FUNCTIONS ✨
+window.activateSoftware = activateSoftware; window.loginAsStaff = loginAsStaff; window.loginAsAdmin = loginAsAdmin;
+window.selectPayment = selectPayment; window.confirmCheckout = confirmCheckout; window.saveEditedOrder = saveEditedOrder;
+window.switchTab = switchTab; window.installApp = installApp; window.lockSystem = lockSystem;
+window.renderMenuUI = renderMenuUI; window.bookTable = bookTable; window.sendToKitchen = sendToKitchen;
+window.markServed = markServed; window.openCheckoutModal = openCheckoutModal; window.clearTable = clearTable;
+window.addMenuItem = addMenuItem; window.addExpense = addExpense; window.editExpense = editExpense; 
+window.deleteExpense = deleteExpense; window.renderStatements = renderStatements; window.exportHistoryToExcel = exportHistoryToExcel;
+window.loadLogo = loadLogo; window.saveSettings = saveSettings; window.testThermalPrinter = testThermalPrinter;
+window.factoryReset = factoryReset; window.filterMenu = filterMenu; window.addToCart = addToCart;
+window.editMenuItem = editMenuItem; window.deleteMenuItem = deleteMenuItem; window.openEditOrderModal = openEditOrderModal;
+window.reprintReceipt = reprintReceipt; window.selectTable = selectTable; window.modifyQty = modifyQty;
+window.connectBluetoothPrinter = connectBluetoothPrinter; window.printKitchenTicket = printKitchenTicket;
+window.addCategory = addCategory; window.deleteCategory = deleteCategory;
