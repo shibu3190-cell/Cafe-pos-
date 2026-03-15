@@ -411,7 +411,7 @@ function editMenuItem(id) {
 }
 function deleteMenuItem(id) { if(confirm("Delete this item permanently?")) { menuItems = menuItems.filter(item => item.id !== id); persistMenu(); renderMenuUI(); showToast("Deleted."); } }
 
-// ✨ 6. AI SMART MENU ENGINE (With Image Compression & Deep Error Handling) ✨
+// ✨ 6. AI SMART MENU ENGINE (Updated to Gemini 2.5 Flash) ✨
 let pendingAiMenu = null;
 
 async function processAIMenu(event) {
@@ -454,14 +454,13 @@ async function processAIMenu(event) {
                 fileReader.readAsArrayBuffer(file);
             });
         } else {
-            // ✨ FIX: Automatically compress massive phone camera photos so Gemini doesn't crash!
             base64Data = await new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     const img = new Image();
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
-                        const MAX_DIM = 1200; // Compresses 4K images down to a readable size
+                        const MAX_DIM = 1200; 
                         let w = img.width, h = img.height;
                         
                         if (w > h && w > MAX_DIM) { h *= MAX_DIM / w; w = MAX_DIM; }
@@ -470,7 +469,6 @@ async function processAIMenu(event) {
                         canvas.width = w; canvas.height = h;
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(img, 0, 0, w, h);
-                        // Convert to lightweight JPEG
                         resolve(canvas.toDataURL('image/jpeg', 0.7));
                     };
                     img.onerror = () => reject(new Error("Image load failed."));
@@ -483,8 +481,8 @@ async function processAIMenu(event) {
 
         const base64Clean = base64Data.split(',')[1];
 
-        // Call Google Gemini API
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+        // ✨ FIX: Swapped to the active Gemini 2.5 Flash model!
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -529,7 +527,6 @@ async function processAIMenu(event) {
 
     } catch (error) {
         console.error(error);
-        // ✨ FIX: Now the toast will tell us EXACTLY what broke!
         showToast("❌ " + error.message);
     } finally {
         btn.disabled = false;
