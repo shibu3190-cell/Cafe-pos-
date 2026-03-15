@@ -411,16 +411,17 @@ function editMenuItem(id) {
 }
 function deleteMenuItem(id) { if(confirm("Delete this item permanently?")) { menuItems = menuItems.filter(item => item.id !== id); persistMenu(); renderMenuUI(); showToast("Deleted."); } }
 
-// ✨ 6. AI SMART MENU ENGINE
+// ✨ 6. AI SMART MENU ENGINE (Free Google Gemini Vision) ✨
 let pendingAiMenu = null;
 
 async function processAIMenu(event) {
     const file = event.target.files[0];
     if (!file) return;
 
+    // We use the same settings field, just pasting the Google key instead!
     const apiKey = shopProfile.openAiKey;
     if (!apiKey) {
-        showToast("⚠️ Please enter your OpenAI API Key in Settings first.");
+        showToast("⚠️ Please enter your Gemini API Key in Settings first.");
         return;
     }
 
@@ -431,7 +432,9 @@ async function processAIMenu(event) {
 
     try {
         let base64Data = "";
+        let mimeType = file.type;
 
+        // Handle PDF via PDF.js OR regular Image
         if (file.type === "application/pdf") {
             if (!window.pdfjsLib) throw new Error("PDF.js library not loaded.");
             
@@ -449,7 +452,8 @@ async function processAIMenu(event) {
                     canvas.width = viewport.width;
                     
                     await page.render({canvasContext: ctx, viewport: viewport}).promise;
-                    resolve(canvas.toDataURL('image/jpeg'));
+                    mimeType = 'image/jpeg';
+                    resolve(canvas.toDataURL(mimeType));
                 };
                 fileReader.onerror = reject;
                 fileReader.readAsArrayBuffer(file);
@@ -462,28 +466,31 @@ async function processAIMenu(event) {
             });
         }
 
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        // Gemini requires the pure base64 string without the data URI prefix
+        const base64Clean = base64Data.split(',')[1];
+
+        // Call Google Gemini API (Free Tier)
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: "gpt-4o",
-                messages: [
-                    {
-                        role: "system",
-                        content: `You are an expert POS menu extraction assistant. Read the provided menu. Extract Categories, Items, Prices, GST percentages (if visible, otherwise output 5), and Variants (e.g. Small/Large). If an item has variants with different prices, create a separate item for each variant (e.g., "Cappuccino - Small"). Output strictly as a JSON object in this exact format: { "categories": [ { "name": "CategoryName", "items": [ { "name": "ItemName", "price": 120, "gst": 5 } ] } ] }`
-                    },
-                    {
-                        role: "user",
-                        content: [
-                            { type: "text", text: "Extract the menu items and output valid JSON." },
-                            { type: "image_url", image_url: { url: base64Data } }
-                        ]
-                    }
-                ],
-                max_tokens: 2000
+                contents: [{
+                    parts: [
+                        { text: `You are an expert POS menu extraction assistant. Read the provided menu. Extract Categories, Items, Prices, GST percentages (if visible, otherwise output 5), and Variants (e.g. Small/Large). If an item has variants with different prices, create a separate item for each variant (e.g., "Cappuccino - Small"). Output strictly as a JSON object in this exact format, with no markdown formatting: { "categories": [ { "name": "CategoryName", "items": [ { "name": "ItemName", "price": 120, "gst": 5 } ] } ] }` },
+                        {
+                            inline_data: {
+                                mime_type: mimeType,
+                                data: base64Clean
+                            }
+                        }
+                    ]
+                }],
+                generationConfig: {
+                    // Force Gemini to always return perfectly formatted JSON
+                    response_mime_type: "application/json" 
+                }
             })
         });
 
@@ -493,10 +500,11 @@ async function processAIMenu(event) {
             throw new Error(data.error.message);
         }
 
-        const rawResponse = data.choices[0].message.content.trim();
-        const cleanJson = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-        pendingAiMenu = JSON.parse(cleanJson);
+        // Parse the JSON response directly from Gemini
+        const rawResponse = data.candidates[0].content.parts[0].text.trim();
+        pendingAiMenu = JSON.parse(rawResponse);
 
+        // Build the Tree Preview
         let treeHtml = "";
         pendingAiMenu.categories.forEach(cat => {
             treeHtml += `<div style="color: var(--primary); font-size: 16px; margin-top: 10px;">${cat.name}</div>`;
@@ -518,38 +526,6 @@ async function processAIMenu(event) {
         btn.innerText = "📁 Upload File";
         document.getElementById('aiMenuUploader').value = ''; 
     }
-}
-
-function confirmAiImport() {
-    if (!pendingAiMenu || !pendingAiMenu.categories) return;
-
-    let itemsAdded = 0;
-
-    pendingAiMenu.categories.forEach(cat => {
-        if (!menuCategories.includes(cat.name)) { menuCategories.push(cat.name); }
-        cat.items.forEach(item => {
-            if (item.name && item.price) {
-                menuItems.push({
-                    id: Date.now() + Math.floor(Math.random() * 10000),
-                    name: String(item.name).trim(),
-                    category: cat.name,
-                    price: parseFloat(item.price),
-                    gstRate: parseFloat(item.gst) || 5,
-                    trackStock: false,
-                    stockQty: 0
-                });
-                itemsAdded++;
-            }
-        });
-    });
-
-    persistCategories();
-    persistMenu();
-    renderCategoryDropdown(); renderCategoryFilters(); renderCategoryListUI(); renderMenuUI();
-
-    document.getElementById('aiPreviewModal').style.display = 'none';
-    pendingAiMenu = null;
-    showToast(`✅ Successfully imported ${itemsAdded} items!`);
 }
 
 // ✨ 7. EXPENSES & REPORTS
