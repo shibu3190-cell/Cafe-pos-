@@ -19,7 +19,7 @@ function hashString(str) {
 }
 
 const defaultPinHash = hashString("1234");
-let shopProfile = { name: "Royal Cafe", address: "", fssai: "", gstin: "", tableCount: 10, logo: "", adminPinHash: defaultPinHash, startInvoiceNo: 1001 };
+let shopProfile = { name: "Royal Cafe", address: "", fssai: "", gstin: "", tableCount: 10, logo: "", adminPinHash: defaultPinHash, startInvoiceNo: 1001, openAiKey: "" };
 let menuItems = [ { id: 1, name: "Espresso", price: 80.00, category: "Tea/Coffee", gstRate: 5, trackStock: false, stockQty: 0 }, { id: 2, name: "Chicken Sandwich", price: 150.00, category: "Food", gstRate: 5, trackStock: false, stockQty: 0 } ];
 let orderHistory = [];
 let dailyExpenses = [];
@@ -34,7 +34,7 @@ let editingMenuItemId = null;
 let editingExpenseId = null; 
 let syncQueue = [];
 
-// ✨ 1. ROBUST INDEXED-DB ENGINE (Race-Condition Proof) ✨
+// ✨ 1. ROBUST INDEXED-DB ENGINE
 const idb = {
     db: null,
     initPromise: null,
@@ -107,9 +107,10 @@ function updateAllUI() {
     document.getElementById('gstinInput').value = shopProfile.gstin || '';
     document.getElementById('tableCountInput').value = shopProfile.tableCount || 10;
     document.getElementById('startInvoiceInput').value = shopProfile.startInvoiceNo || 1001; 
+    document.getElementById('openAiKeyInput').value = shopProfile.openAiKey || '';
 }
 
-// ✨ 2. FIREBASE CLOUD SYNC ✨
+// ✨ 2. FIREBASE CLOUD SYNC
 window.addEventListener('firebaseLoaded', () => {
     if(!navigator.onLine) return; 
     const dataRef = window.firebaseRef(window.firebaseDB, `clients/${myClientID}`);
@@ -177,7 +178,7 @@ async function processSyncQueue() {
     isSyncing = false;
 }
 
-// ✨ 3. DEVICE ACTIVATION & SECURITY ✨
+// ✨ 3. DEVICE ACTIVATION
 function getOrCreateDeviceId() {
     let deviceId = localStorage.getItem('cafeDeviceId');
     if (!deviceId) {
@@ -280,7 +281,7 @@ function switchTab(tabId) {
     if(tabId === 'reports') renderStatements(); 
 }
 
-// ✨ 4. PROFILE & SETTINGS ✨
+// ✨ 4. PROFILE & SETTINGS
 function updateProfileVisuals() {
     document.getElementById('displayShopName').innerText = shopProfile.name;
     document.querySelector('.topbar-title').childNodes[0].nodeValue = shopProfile.name + " Terminal ";
@@ -298,11 +299,14 @@ function saveSettings() {
     const newStartNo = parseInt(document.getElementById('startInvoiceInput').value);
     if(newStartNo) shopProfile.startInvoiceNo = newStartNo;
     if(document.getElementById('adminPinSetup').value.length >= 4) { shopProfile.adminPinHash = hashString(document.getElementById('adminPinSetup').value); document.getElementById('adminPinSetup').value = ''; }
+    
+    shopProfile.openAiKey = document.getElementById('openAiKeyInput').value.trim(); // Save API Key
+    
     for(let i = 1; i <= shopProfile.tableCount; i++) if(!tablesInfo[i]) tablesInfo[i] = { items: [], status: 'empty', savedTime: null, lastReminder: null };
     persistProfile(); persistTables(); showToast("Settings Saved!"); updateProfileVisuals();
 }
 
-// ✨ 5. DYNAMIC CATEGORIES & MENU ✨
+// ✨ 5. DYNAMIC CATEGORIES & MENU
 function renderCategoryDropdown() {
     const select = document.getElementById('newItemCategory');
     select.innerHTML = menuCategories.map(c => `<option value="${c}">${c}</option>`).join('');
@@ -402,7 +406,161 @@ function editMenuItem(id) {
 }
 function deleteMenuItem(id) { if(confirm("Delete this item permanently?")) { menuItems = menuItems.filter(item => item.id !== id); persistMenu(); renderMenuUI(); showToast("Deleted."); } }
 
-// ✨ 6. EXPENSES & REPORTS ✨
+// ✨ 6. AI SMART MENU ENGINE (Image + PDF Parsing) ✨
+let pendingAiMenu = null;
+
+async function processAIMenu(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const apiKey = shopProfile.openAiKey;
+    if (!apiKey) {
+        showToast("⚠️ Please enter your OpenAI API Key in Settings first.");
+        return;
+    }
+
+    const btn = document.getElementById('aiMenuBtn');
+    btn.disabled = true;
+    btn.innerText = "⏳ Analyzing Menu...";
+    showToast("🤖 AI is reading the menu. Please wait...");
+
+    try {
+        let base64Data = "";
+
+        // Handle PDF via PDF.js OR regular Image
+        if (file.type === "application/pdf") {
+            if (!window.pdfjsLib) throw new Error("PDF.js library not loaded.");
+            
+            const fileReader = new FileReader();
+            base64Data = await new Promise((resolve, reject) => {
+                fileReader.onload = async function() {
+                    const typedarray = new Uint8Array(this.result);
+                    const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                    const page = await pdf.getPage(1); // Read first page
+                    
+                    const viewport = page.getViewport({scale: 1.5});
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+                    
+                    await page.render({canvasContext: ctx, viewport: viewport}).promise;
+                    resolve(canvas.toDataURL('image/jpeg'));
+                };
+                fileReader.onerror = reject;
+                fileReader.readAsArrayBuffer(file);
+            });
+        } else {
+            // It's an image
+            base64Data = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Call OpenAI Vision
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: "gpt-4o",
+                messages: [
+                    {
+                        role: "system",
+                        content: `You are an expert POS menu extraction assistant. Read the provided menu. Extract Categories, Items, Prices, GST percentages (if visible, otherwise output 5), and Variants (e.g. Small/Large). If an item has variants with different prices, create a separate item for each variant (e.g., "Cappuccino - Small"). Output strictly as a JSON object in this exact format: { "categories": [ { "name": "CategoryName", "items": [ { "name": "ItemName", "price": 120, "gst": 5 } ] } ] }`
+                    },
+                    {
+                        role: "user",
+                        content: [
+                            { type: "text", text: "Extract the menu items and output valid JSON." },
+                            { type: "image_url", image_url: { url: base64Data } }
+                        ]
+                    }
+                ],
+                max_tokens: 2000
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            throw new Error(data.error.message);
+        }
+
+        const rawResponse = data.choices[0].message.content.trim();
+        const cleanJson = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+        pendingAiMenu = JSON.parse(cleanJson);
+
+        // Build the Tree Preview
+        let treeHtml = "";
+        pendingAiMenu.categories.forEach(cat => {
+            treeHtml += `<div style="color: var(--primary); font-size: 16px; margin-top: 10px;">${cat.name}</div>`;
+            cat.items.forEach((item, index) => {
+                let isLast = index === cat.items.length - 1;
+                let branch = isLast ? "└" : "├";
+                treeHtml += `<div style="padding-left: 10px; color: #555;"> ${branch} ${item.name} – ${item.price} (GST: ${item.gst}%)</div>`;
+            });
+        });
+
+        document.getElementById('aiPreviewTree').innerHTML = treeHtml;
+        document.getElementById('aiPreviewModal').style.display = 'flex';
+
+    } catch (error) {
+        console.error(error);
+        showToast("❌ Menu processing failed. Please try a clearer image.");
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "📁 Upload File";
+        document.getElementById('aiMenuUploader').value = ''; 
+    }
+}
+
+function confirmAiImport() {
+    if (!pendingAiMenu || !pendingAiMenu.categories) return;
+
+    let itemsAdded = 0;
+
+    pendingAiMenu.categories.forEach(cat => {
+        // Add category if new
+        if (!menuCategories.includes(cat.name)) {
+            menuCategories.push(cat.name);
+        }
+        
+        // Add items
+        cat.items.forEach(item => {
+            if (item.name && item.price) {
+                menuItems.push({
+                    id: Date.now() + Math.floor(Math.random() * 10000),
+                    name: String(item.name).trim(),
+                    category: cat.name,
+                    price: parseFloat(item.price),
+                    gstRate: parseFloat(item.gst) || 5,
+                    trackStock: false,
+                    stockQty: 0
+                });
+                itemsAdded++;
+            }
+        });
+    });
+
+    persistCategories();
+    persistMenu();
+    
+    renderCategoryDropdown();
+    renderCategoryFilters();
+    renderCategoryListUI();
+    renderMenuUI();
+
+    document.getElementById('aiPreviewModal').style.display = 'none';
+    pendingAiMenu = null;
+    showToast(`✅ Successfully imported ${itemsAdded} items!`);
+}
+
+// ✨ 7. EXPENSES & REPORTS
 function addExpense() {
     const name = document.getElementById('expenseName').value; 
     const cost = parseFloat(document.getElementById('expenseCost').value); 
@@ -483,7 +641,7 @@ function exportHistoryToExcel() {
     const link = document.createElement("a"); link.setAttribute("href", URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }))); link.setAttribute("download", `Sales_${dateInput}.csv`); link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
 
-// ✨ 7. CART & TABLE MANAGEMENT ✨
+// ✨ 8. CART & TABLE MANAGEMENT
 function renderTables() {
     const grid = document.getElementById('tableGridUI'); grid.innerHTML = '';
     for(let i = 1; i <= shopProfile.tableCount; i++) {
@@ -553,11 +711,7 @@ function openCheckoutModal() {
     document.getElementById('checkoutModal').style.display = 'flex';
 }
 
-function clearTable() { if(confirm("Clear this entire order?")) { tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); renderTables(); updateCartUI(); } }
-function showToast(message) { const container = document.getElementById('toast-container'), toast = document.createElement('div'); toast.className = 'toast'; toast.innerHTML = `<span>🔔</span> ${message}`; container.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(-10px)'; toast.style.transition = 'all 0.3s ease'; setTimeout(() => toast.remove(), 300); }, 3000); }
-
-
-// ✨ 8. CHECKOUT ENGINE (With Safe PDF Fallback & Button Lock) ✨
+// ✨ 9. CHECKOUT ENGINE (With Safe PDF Fallback & Button Lock)
 async function confirmCheckout() {
     let tInfo = tablesInfo[activeTable]; 
     if(!tInfo || tInfo.items.length === 0) return showToast(`Table ${activeTable} is empty!`);
@@ -599,8 +753,11 @@ async function confirmCheckout() {
     }
 }
 
+function clearTable() { if(confirm("Clear this entire order?")) { tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); renderTables(); updateCartUI(); } }
+function showToast(message) { const container = document.getElementById('toast-container'), toast = document.createElement('div'); toast.className = 'toast'; toast.innerHTML = `<span>🔔</span> ${message}`; container.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(-10px)'; toast.style.transition = 'all 0.3s ease'; setTimeout(() => toast.remove(), 300); }, 3000); }
 
-// ✨ 9. KITCHEN ORDER TICKET (KOT) ENGINE ✨
+
+// ✨ 10. KITCHEN ORDER TICKET (KOT) ENGINE
 function sendToKitchen() { 
     let tInfo = tablesInfo[activeTable]; 
     if(tInfo.items.length === 0) return showToast("Nothing to send!"); 
@@ -630,7 +787,7 @@ async function printKitchenTicket() {
 }
 
 
-// ✨ 10. ADVANCED ESC/POS BLUETOOTH & HTML ENGINE ✨
+// ✨ 11. ADVANCED ESC/POS BLUETOOTH & HTML ENGINE
 async function getLogoBytes(base64Image) {
     return new Promise((resolve) => {
         const img = new Image();
@@ -904,27 +1061,22 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 
 function installApp() { 
-    // 1. Check if they are ALREADY using the installed app (Standalone mode)
     if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
         return showToast("✅ You are already using the installed PWA.");
     }
-    
-    // 2. If Android/Chrome gives us the prompt, use it
     if (deferredPrompt) { 
         deferredPrompt.prompt(); 
-        deferredPrompt.userChoice.then((choiceResult) => { 
-            deferredPrompt = null; 
-        }); 
+        deferredPrompt.userChoice.then((choiceResult) => { deferredPrompt = null; }); 
     } 
-    // 3. Apple/iOS completely blocks deferredPrompt, give manual instructions
     else if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) { 
         showToast("🍎 iOS: Tap the 'Share' icon at the bottom, then 'Add to Home Screen'."); 
     } 
-    // 4. Fallback for PC or browsers that hide the prompt
     else { 
         showToast("⚠️ Cannot install automatically. Please use your browser's menu (⋮) -> 'Install App'."); 
     } 
 }
+
+// ✨ GLOBALLY EXPOSE FUNCTIONS ✨
 window.activateSoftware = activateSoftware; window.loginAsStaff = loginAsStaff; window.loginAsAdmin = loginAsAdmin;
 window.selectPayment = selectPayment; window.confirmCheckout = confirmCheckout; window.saveEditedOrder = saveEditedOrder;
 window.switchTab = switchTab; window.installApp = installApp; window.lockSystem = lockSystem;
@@ -937,4 +1089,4 @@ window.factoryReset = factoryReset; window.filterMenu = filterMenu; window.addTo
 window.editMenuItem = editMenuItem; window.deleteMenuItem = deleteMenuItem; window.openEditOrderModal = openEditOrderModal;
 window.reprintReceipt = reprintReceipt; window.selectTable = selectTable; window.modifyQty = modifyQty;
 window.connectBluetoothPrinter = connectBluetoothPrinter; window.printKitchenTicket = printKitchenTicket;
-window.addCategory = addCategory; window.deleteCategory = deleteCategory;
+window.addCategory = addCategory; window.deleteCategory = deleteCategory; window.processAIMenu = processAIMenu; window.confirmAiImport = confirmAiImport;
