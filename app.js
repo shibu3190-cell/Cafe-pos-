@@ -1,6 +1,11 @@
 document.getElementById('topbarDate').innerText = new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 const ALERT_THRESHOLD_MS = 15 * 60 * 1000; 
 
+// Initialize PDF.js Worker
+if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
 function getLocalISODate(dateObj = new Date()) {
     const yyyy = dateObj.getFullYear();
     const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -300,7 +305,7 @@ function saveSettings() {
     if(newStartNo) shopProfile.startInvoiceNo = newStartNo;
     if(document.getElementById('adminPinSetup').value.length >= 4) { shopProfile.adminPinHash = hashString(document.getElementById('adminPinSetup').value); document.getElementById('adminPinSetup').value = ''; }
     
-    shopProfile.openAiKey = document.getElementById('openAiKeyInput').value.trim(); // Save API Key
+    shopProfile.openAiKey = document.getElementById('openAiKeyInput').value.trim();
     
     for(let i = 1; i <= shopProfile.tableCount; i++) if(!tablesInfo[i]) tablesInfo[i] = { items: [], status: 'empty', savedTime: null, lastReminder: null };
     persistProfile(); persistTables(); showToast("Settings Saved!"); updateProfileVisuals();
@@ -406,7 +411,7 @@ function editMenuItem(id) {
 }
 function deleteMenuItem(id) { if(confirm("Delete this item permanently?")) { menuItems = menuItems.filter(item => item.id !== id); persistMenu(); renderMenuUI(); showToast("Deleted."); } }
 
-// ✨ 6. AI SMART MENU ENGINE (Image + PDF Parsing) ✨
+// ✨ 6. AI SMART MENU ENGINE
 let pendingAiMenu = null;
 
 async function processAIMenu(event) {
@@ -427,7 +432,6 @@ async function processAIMenu(event) {
     try {
         let base64Data = "";
 
-        // Handle PDF via PDF.js OR regular Image
         if (file.type === "application/pdf") {
             if (!window.pdfjsLib) throw new Error("PDF.js library not loaded.");
             
@@ -436,7 +440,7 @@ async function processAIMenu(event) {
                 fileReader.onload = async function() {
                     const typedarray = new Uint8Array(this.result);
                     const pdf = await pdfjsLib.getDocument(typedarray).promise;
-                    const page = await pdf.getPage(1); // Read first page
+                    const page = await pdf.getPage(1); 
                     
                     const viewport = page.getViewport({scale: 1.5});
                     const canvas = document.createElement('canvas');
@@ -451,7 +455,6 @@ async function processAIMenu(event) {
                 fileReader.readAsArrayBuffer(file);
             });
         } else {
-            // It's an image
             base64Data = await new Promise((resolve) => {
                 const reader = new FileReader();
                 reader.onload = (e) => resolve(e.target.result);
@@ -459,7 +462,6 @@ async function processAIMenu(event) {
             });
         }
 
-        // Call OpenAI Vision
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
@@ -495,7 +497,6 @@ async function processAIMenu(event) {
         const cleanJson = rawResponse.replace(/```json/g, '').replace(/```/g, '').trim();
         pendingAiMenu = JSON.parse(cleanJson);
 
-        // Build the Tree Preview
         let treeHtml = "";
         pendingAiMenu.categories.forEach(cat => {
             treeHtml += `<div style="color: var(--primary); font-size: 16px; margin-top: 10px;">${cat.name}</div>`;
@@ -511,7 +512,7 @@ async function processAIMenu(event) {
 
     } catch (error) {
         console.error(error);
-        showToast("❌ Menu processing failed. Please try a clearer image.");
+        showToast("❌ Menu processing failed. Try a clearer image.");
     } finally {
         btn.disabled = false;
         btn.innerText = "📁 Upload File";
@@ -525,12 +526,7 @@ function confirmAiImport() {
     let itemsAdded = 0;
 
     pendingAiMenu.categories.forEach(cat => {
-        // Add category if new
-        if (!menuCategories.includes(cat.name)) {
-            menuCategories.push(cat.name);
-        }
-        
-        // Add items
+        if (!menuCategories.includes(cat.name)) { menuCategories.push(cat.name); }
         cat.items.forEach(item => {
             if (item.name && item.price) {
                 menuItems.push({
@@ -549,11 +545,7 @@ function confirmAiImport() {
 
     persistCategories();
     persistMenu();
-    
-    renderCategoryDropdown();
-    renderCategoryFilters();
-    renderCategoryListUI();
-    renderMenuUI();
+    renderCategoryDropdown(); renderCategoryFilters(); renderCategoryListUI(); renderMenuUI();
 
     document.getElementById('aiPreviewModal').style.display = 'none';
     pendingAiMenu = null;
@@ -711,7 +703,11 @@ function openCheckoutModal() {
     document.getElementById('checkoutModal').style.display = 'flex';
 }
 
-// ✨ 9. CHECKOUT ENGINE (With Safe PDF Fallback & Button Lock)
+function clearTable() { if(confirm("Clear this entire order?")) { tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); renderTables(); updateCartUI(); } }
+function showToast(message) { const container = document.getElementById('toast-container'), toast = document.createElement('div'); toast.className = 'toast'; toast.innerHTML = `<span>🔔</span> ${message}`; container.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(-10px)'; toast.style.transition = 'all 0.3s ease'; setTimeout(() => toast.remove(), 300); }, 3000); }
+
+
+// ✨ 9. CHECKOUT ENGINE
 async function confirmCheckout() {
     let tInfo = tablesInfo[activeTable]; 
     if(!tInfo || tInfo.items.length === 0) return showToast(`Table ${activeTable} is empty!`);
@@ -752,9 +748,6 @@ async function confirmCheckout() {
         payBtn.innerText = "🖨️ Pay & Print";
     }
 }
-
-function clearTable() { if(confirm("Clear this entire order?")) { tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); renderTables(); updateCartUI(); } }
-function showToast(message) { const container = document.getElementById('toast-container'), toast = document.createElement('div'); toast.className = 'toast'; toast.innerHTML = `<span>🔔</span> ${message}`; container.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(-10px)'; toast.style.transition = 'all 0.3s ease'; setTimeout(() => toast.remove(), 300); }, 3000); }
 
 
 // ✨ 10. KITCHEN ORDER TICKET (KOT) ENGINE
