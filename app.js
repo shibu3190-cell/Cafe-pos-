@@ -411,14 +411,13 @@ function editMenuItem(id) {
 }
 function deleteMenuItem(id) { if(confirm("Delete this item permanently?")) { menuItems = menuItems.filter(item => item.id !== id); persistMenu(); renderMenuUI(); showToast("Deleted."); } }
 
-// ✨ 6. AI SMART MENU ENGINE (With Advanced Error Handling & Auto-Cleaning) ✨
+// ✨ 6. AI SMART MENU ENGINE (With Image Compression & Deep Error Handling) ✨
 let pendingAiMenu = null;
 
 async function processAIMenu(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Make sure to trim any accidental spaces from the API key
     const apiKey = shopProfile.openAiKey ? shopProfile.openAiKey.trim() : "";
     if (!apiKey) {
         showToast("⚠️ Please enter your Gemini API Key in Settings first.");
@@ -427,17 +426,15 @@ async function processAIMenu(event) {
 
     const btn = document.getElementById('aiMenuBtn');
     btn.disabled = true;
-    btn.innerText = "⏳ Analyzing Menu...";
-    showToast("🤖 AI is reading the menu. Please wait...");
+    btn.innerText = "⏳ Compressing & Analyzing...";
+    showToast("🤖 Processing image. Please wait...");
 
     try {
         let base64Data = "";
-        let mimeType = file.type || 'image/jpeg';
+        let mimeType = 'image/jpeg';
 
-        // Handle PDF via PDF.js OR regular Image
         if (file.type === "application/pdf") {
             if (!window.pdfjsLib) throw new Error("PDF reader library failed to load.");
-            
             const fileReader = new FileReader();
             base64Data = await new Promise((resolve, reject) => {
                 fileReader.onload = async function() {
@@ -445,29 +442,41 @@ async function processAIMenu(event) {
                         const typedarray = new Uint8Array(this.result);
                         const pdf = await pdfjsLib.getDocument(typedarray).promise;
                         const page = await pdf.getPage(1); 
-                        
                         const viewport = page.getViewport({scale: 1.5});
                         const canvas = document.createElement('canvas');
                         const ctx = canvas.getContext('2d');
                         canvas.height = viewport.height;
                         canvas.width = viewport.width;
-                        
                         await page.render({canvasContext: ctx, viewport: viewport}).promise;
-                        mimeType = 'image/jpeg';
-                        resolve(canvas.toDataURL(mimeType, 0.8)); // 0.8 compresses it slightly to prevent size errors
-                    } catch (err) {
-                        reject(new Error("Failed to extract data from PDF."));
-                    }
+                        resolve(canvas.toDataURL('image/jpeg', 0.8));
+                    } catch(e) { reject(new Error("PDF parsing failed.")); }
                 };
-                fileReader.onerror = () => reject(new Error("Could not read the file."));
                 fileReader.readAsArrayBuffer(file);
             });
         } else {
-            // It's an image
+            // ✨ FIX: Automatically compress massive phone camera photos so Gemini doesn't crash!
             base64Data = await new Promise((resolve, reject) => {
                 const reader = new FileReader();
-                reader.onload = (e) => resolve(e.target.result);
-                reader.onerror = () => reject(new Error("Could not read the image file."));
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const MAX_DIM = 1200; // Compresses 4K images down to a readable size
+                        let w = img.width, h = img.height;
+                        
+                        if (w > h && w > MAX_DIM) { h *= MAX_DIM / w; w = MAX_DIM; }
+                        else if (h > MAX_DIM) { w *= MAX_DIM / h; h = MAX_DIM; }
+                        
+                        canvas.width = w; canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, w, h);
+                        // Convert to lightweight JPEG
+                        resolve(canvas.toDataURL('image/jpeg', 0.7));
+                    };
+                    img.onerror = () => reject(new Error("Image load failed."));
+                    img.src = e.target.result;
+                };
+                reader.onerror = () => reject(new Error("File reading failed."));
                 reader.readAsDataURL(file);
             });
         }
@@ -477,62 +486,41 @@ async function processAIMenu(event) {
         // Call Google Gemini API
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{
                     parts: [
-                        { text: `You are an expert POS menu extraction assistant. Read the provided menu. Extract Categories, Items, Prices, GST percentages (if visible, otherwise output 5), and Variants (e.g. Small/Large). If an item has variants with different prices, create a separate item for each variant. Output strictly as a JSON object in this exact format: { "categories": [ { "name": "CategoryName", "items": [ { "name": "ItemName", "price": 120, "gst": 5 } ] } ] }` },
-                        {
-                            inline_data: {
-                                mime_type: mimeType,
-                                data: base64Clean
-                            }
-                        }
+                        { text: `Extract Categories, Items, Prices, GST percentages (output 5 if missing). Output strictly as a JSON object: { "categories": [ { "name": "CategoryName", "items": [ { "name": "ItemName", "price": 120, "gst": 5 } ] } ] }` },
+                        { inline_data: { mime_type: mimeType, data: base64Clean } }
                     ]
                 }],
-                generationConfig: {
-                    response_mime_type: "application/json" 
-                }
+                generationConfig: { response_mime_type: "application/json" }
             })
         });
 
         const data = await response.json();
 
-        // Check if Google actively rejected the API Key or Image
-        if (data.error) {
-            throw new Error("API Error: " + data.error.message);
-        }
-
-        if (!data.candidates || data.candidates.length === 0) {
-            throw new Error("AI returned an empty response.");
-        }
+        if (data.error) throw new Error("API Error: " + data.error.message);
+        if (!data.candidates || data.candidates.length === 0) throw new Error("AI returned empty data.");
 
         let rawResponse = data.candidates[0].content.parts[0].text.trim();
-        
-        // ✨ FIX: Vigorously strip out any markdown formatting the AI might sneak in
-        rawResponse = rawResponse.replace(/```json/gi, '').replace(/```/g, '').trim();
-        
+        rawResponse = rawResponse.replace(/^```(json)?|```$/gi, '').trim();
+
         try {
             pendingAiMenu = JSON.parse(rawResponse);
         } catch (parseError) {
             console.error("Raw AI Output:", rawResponse);
-            throw new Error("AI output was corrupted. Please try again.");
+            throw new Error("AI output was invalid JSON.");
         }
 
-        if (!pendingAiMenu || !pendingAiMenu.categories || pendingAiMenu.categories.length === 0) {
-            throw new Error("No menu items were detected in the image.");
-        }
+        if (!pendingAiMenu || !pendingAiMenu.categories || pendingAiMenu.categories.length === 0) throw new Error("No menu items detected.");
 
-        // Build the Tree Preview
         let treeHtml = "";
         pendingAiMenu.categories.forEach(cat => {
             treeHtml += `<div style="color: var(--primary); font-size: 16px; margin-top: 10px;">${cat.name}</div>`;
             cat.items.forEach((item, index) => {
-                let isLast = index === cat.items.length - 1;
-                let branch = isLast ? "└" : "├";
-                treeHtml += `<div style="padding-left: 10px; color: #555;"> ${branch} ${item.name} – ${item.price} (GST: ${item.gst}%)</div>`;
+                let branch = (index === cat.items.length - 1) ? "└" : "├";
+                treeHtml += `<div style="padding-left: 10px; color: #555;"> ${branch} ${item.name} – ₹${item.price} (GST: ${item.gst}%)</div>`;
             });
         });
 
