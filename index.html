@@ -60,7 +60,7 @@
                 <p>Review the AI-generated menu tree below before importing.</p>
             </div>
             <div id="aiPreviewTree" style="background: var(--bg-body); padding: 20px; border-radius: var(--radius-md); border: 2px solid var(--border); font-family: monospace; font-size: 14px; max-height: 40vh; overflow-y: auto; text-align: left; line-height: 1.6; color: var(--text-dark); font-weight: 600; box-shadow: inset 0 4px 10px rgba(0,0,0,0.05);">
-                </div>
+            </div>
             <div class="modal-actions">
                 <button class="btn btn-outline" onclick="document.getElementById('aiPreviewModal').style.display='none'">Cancel</button>
                 <button class="btn btn-success" style="flex: 2; font-size: 16px; background: #10a37f;" onclick="confirmAiImport()">✅ Confirm & Import</button>
@@ -203,13 +203,14 @@
             </div>
 
             <div id="menu" class="view">
-                <div style="background: linear-gradient(135deg, #10a37f, #0b7a5e); padding: 18px 25px; border-radius: var(--radius-lg); margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; color: white; box-shadow: 0 8px 20px rgba(16, 163, 127, 0.25);">
+                
+                <div style="background: linear-gradient(135deg, #10a37f, #0b7a5e); padding: 18px 25px; border-radius: var(--radius-lg); margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; color: white; box-shadow: 0 8px 20px rgba(16, 163, 127, 0.25); flex-wrap: wrap; gap: 15px;">
                     <div>
                         <h3 style="margin: 0; color: white; font-size: 18px; font-weight: 800;">🤖 Smart Menu Import Engine</h3>
-                        <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9; font-weight: 500;">Upload a PDF or Photo. AI auto-detects Categories, Items, Prices, GST & Variants.</p>
+                        <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9; font-weight: 500;">Upload a PDF or Photo. AI auto-detects Categories, Items, Prices & GST.</p>
                     </div>
                     <input type="file" id="aiMenuUploader" accept="image/*, application/pdf" style="display: none;" onchange="processAIMenu(event)">
-                    <button class="btn" style="background: white; color: #10a37f; font-weight: 800; padding: 14px 24px; font-size: 14px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);" onclick="document.getElementById('aiMenuUploader').click()" id="aiMenuBtn">📁 Upload File</button>
+                    <button class="btn" style="background: white; color: #10a37f; font-weight: 800; padding: 14px 24px; font-size: 14px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); white-space: nowrap;" onclick="document.getElementById('aiMenuUploader').click()" id="aiMenuBtn">📁 Upload File</button>
                 </div>
 
                 <div class="card" style="background: var(--bg-surface); border-bottom: 4px solid var(--primary);">
