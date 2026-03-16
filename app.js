@@ -534,6 +534,7 @@ async function processAIMenu(event) {
     }
 }
 
+// ✨ 1. FAULT-TOLERANT AI IMPORT ENGINE ✨
 function confirmAiImport() {
     const btn = document.querySelector('#aiPreviewModal .btn-success');
     
@@ -547,7 +548,7 @@ function confirmAiImport() {
         let newCategoriesAdded = 0;
 
         pendingAiMenu.categories.forEach((cat, catIndex) => {
-            let catName = String(cat.name).trim();
+            let catName = String(cat.name || cat.category || "Uncategorized").trim();
             
             let existingCat = menuCategories.find(c => c.toLowerCase() === catName.toLowerCase());
             
@@ -558,20 +559,28 @@ function confirmAiImport() {
                 catName = existingCat; 
             }
             
-            cat.items.forEach((item, itemIndex) => {
-                if (item.name && item.price !== undefined) {
-                    menuItems.push({
-                        id: Date.now() + (catIndex * 100) + itemIndex + Math.floor(Math.random() * 1000),
-                        name: String(item.name).trim(),
-                        category: catName,
-                        price: parseFloat(item.price) || 0,
-                        gstRate: parseFloat(item.gst) || 0,
-                        trackStock: false,
-                        stockQty: 0
-                    });
-                    itemsAdded++;
-                }
-            });
+            // Check if the AI actually returned items for this category
+            if(cat.items && Array.isArray(cat.items)) {
+                cat.items.forEach((item, itemIndex) => {
+                    // FIX: Catch the data no matter if Gemini uses uppercase or lowercase keys!
+                    let rawName = item.name || item.title || item.ItemName || item.itemName;
+                    let rawPrice = item.price !== undefined ? item.price : (item.Price !== undefined ? item.Price : 0);
+                    let rawGst = item.gst !== undefined ? item.gst : (item.GST !== undefined ? item.GST : 0);
+
+                    if (rawName) {
+                        menuItems.push({
+                            id: Date.now() + (catIndex * 100) + itemIndex + Math.floor(Math.random() * 1000),
+                            name: String(rawName).trim(),
+                            category: catName,
+                            price: parseFloat(rawPrice) || 0,
+                            gstRate: parseFloat(rawGst) || 0,
+                            trackStock: false,
+                            stockQty: 0
+                        });
+                        itemsAdded++;
+                    }
+                });
+            }
         });
 
         persistCategories();
@@ -585,11 +594,7 @@ function confirmAiImport() {
         document.getElementById('aiPreviewModal').style.display = 'none';
         pendingAiMenu = null;
         
-        if (newCategoriesAdded > 0) {
-            showToast(`✅ Imported ${itemsAdded} items & Auto-Created ${newCategoriesAdded} new categories!`);
-        } else {
-            showToast(`✅ Successfully imported ${itemsAdded} items!`);
-        }
+        showToast(`✅ Imported ${itemsAdded} items & Auto-Created ${newCategoriesAdded} categories!`);
 
     } catch (error) {
         console.error(error);
@@ -599,6 +604,76 @@ function confirmAiImport() {
             btn.disabled = false;
             btn.innerText = "✅ Confirm & Import";
         }
+    }
+}
+
+// ✨ 2. UPGRADED EDIT FUNCTION (Category Shifting Support) ✨
+function editMenuItem(id) {
+    const item = menuItems.find(i => i.id === id);
+    if(item) {
+        document.getElementById('newItemName').value = item.name; 
+        
+        // Ensure the dropdown has the latest categories before selecting
+        renderCategoryDropdown();
+        document.getElementById('newItemCategory').value = item.category;
+        
+        document.getElementById('newItemPrice').value = item.price; 
+        document.getElementById('newItemGst').value = item.gstRate;
+        document.getElementById('newItemTrackStock').checked = item.trackStock || false; 
+        document.getElementById('newItemStock').style.display = item.trackStock ? 'block' : 'none'; 
+        document.getElementById('newItemStock').value = item.stockQty || '';
+        
+        editingMenuItemId = id; 
+        document.getElementById('menuFormTitle').innerText = "Edit Item (Shift Category Below 👇)"; 
+        document.getElementById('addMenuBtn').innerText = "💾 Update & Move Item"; 
+        
+        // Smoothly scroll the screen up to the form
+        document.getElementById('menuFormTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        
+        // Highlight the category box so the user sees they can shift it
+        const catBox = document.getElementById('newItemCategory');
+        catBox.style.boxShadow = "0 0 0 4px rgba(226, 94, 62, 0.4)";
+        setTimeout(() => { catBox.style.boxShadow = "inset 0 2px 4px rgba(0,0,0,0.04)"; }, 1500);
+    }
+}
+
+// ✨ 3. UPGRADED SAVE FUNCTION (Applies the Category Shift) ✨
+function addMenuItem() {
+    const name = document.getElementById('newItemName').value; 
+    const price = parseFloat(document.getElementById('newItemPrice').value); 
+    const category = document.getElementById('newItemCategory').value; // Grabs the newly shifted category
+    const gstRate = parseFloat(document.getElementById('newItemGst').value) || 0; 
+    const trackStock = document.getElementById('newItemTrackStock').checked; 
+    const stockQty = parseInt(document.getElementById('newItemStock').value) || 0;
+
+    if(name && !isNaN(price)) { 
+        if (editingMenuItemId) {
+            const index = menuItems.findIndex(i => i.id === editingMenuItemId);
+            if(index > -1) {
+                // Apply the shift!
+                menuItems[index] = { id: editingMenuItemId, name, category, price, gstRate, trackStock, stockQty };
+            }
+            editingMenuItemId = null; 
+            document.getElementById('addMenuBtn').innerText = "+ Save to Menu"; 
+            document.getElementById('menuFormTitle').innerText = "Add New Menu Item"; 
+            
+            // Force the UI back to "All" so the shifted item doesn't vanish from view
+            activeCategory = "All";
+            renderCategoryFilters();
+            
+            showToast("✅ Item updated & shifted!");
+        } else { 
+            menuItems.push({ id: Date.now(), name, category, price, gstRate, trackStock, stockQty }); 
+            showToast("✅ Item added!"); 
+        }
+        
+        document.getElementById('newItemName').value = ''; document.getElementById('newItemPrice').value = ''; 
+        document.getElementById('newItemTrackStock').checked = false; document.getElementById('newItemStock').style.display = 'none'; document.getElementById('newItemStock').value = '';
+        
+        persistMenu(); 
+        renderMenuUI();
+    } else { 
+        showToast("⚠️ Name and Price required."); 
     }
 }
 
