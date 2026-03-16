@@ -411,7 +411,7 @@ function editMenuItem(id) {
 }
 function deleteMenuItem(id) { if(confirm("Delete this item permanently?")) { menuItems = menuItems.filter(item => item.id !== id); persistMenu(); renderMenuUI(); showToast("Deleted."); } }
 
-// ✨ 6. AI SMART MENU ENGINE (Updated to Gemini 2.5 Flash) ✨
+// ✨ 6. AI SMART MENU ENGINE (With Image Compression, Gemini 2.5, Smart Categories) ✨
 let pendingAiMenu = null;
 
 async function processAIMenu(event) {
@@ -481,14 +481,13 @@ async function processAIMenu(event) {
 
         const base64Clean = base64Data.split(',')[1];
 
-        // ✨ FIX: Swapped to the active Gemini 2.5 Flash model!
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 contents: [{
                     parts: [
-                        { text: `Extract Categories, Items, Prices, GST percentages (output 5 if missing). Output strictly as a JSON object: { "categories": [ { "name": "CategoryName", "items": [ { "name": "ItemName", "price": 120, "gst": 5 } ] } ] }` },
+                        { text: `Extract Categories, Items, Prices, and GST percentages (output 0 if missing). Output strictly as a JSON object: { "categories": [ { "name": "CategoryName", "items": [ { "name": "ItemName", "price": 120, "gst": 0 } ] } ] }` },
                         { inline_data: { mime_type: mimeType, data: base64Clean } }
                     ]
                 }],
@@ -518,7 +517,7 @@ async function processAIMenu(event) {
             treeHtml += `<div style="color: var(--primary); font-size: 16px; margin-top: 10px;">${cat.name}</div>`;
             cat.items.forEach((item, index) => {
                 let branch = (index === cat.items.length - 1) ? "└" : "├";
-                treeHtml += `<div style="padding-left: 10px; color: #555;"> ${branch} ${item.name} – ₹${item.price} (GST: ${item.gst}%)</div>`;
+                treeHtml += `<div style="padding-left: 10px; color: #555;"> ${branch} ${item.name} – ₹${item.price} (GST: ${item.gst || 0}%)</div>`;
             });
         });
 
@@ -534,6 +533,75 @@ async function processAIMenu(event) {
         document.getElementById('aiMenuUploader').value = ''; 
     }
 }
+
+function confirmAiImport() {
+    const btn = document.querySelector('#aiPreviewModal .btn-success');
+    
+    try {
+        btn.disabled = true;
+        btn.innerText = "⏳ Importing Data...";
+
+        if (!pendingAiMenu || !pendingAiMenu.categories) throw new Error("No data found.");
+
+        let itemsAdded = 0;
+        let newCategoriesAdded = 0;
+
+        pendingAiMenu.categories.forEach((cat, catIndex) => {
+            let catName = String(cat.name).trim();
+            
+            let existingCat = menuCategories.find(c => c.toLowerCase() === catName.toLowerCase());
+            
+            if (!existingCat) { 
+                menuCategories.push(catName); 
+                newCategoriesAdded++;
+            } else {
+                catName = existingCat; 
+            }
+            
+            cat.items.forEach((item, itemIndex) => {
+                if (item.name && item.price !== undefined) {
+                    menuItems.push({
+                        id: Date.now() + (catIndex * 100) + itemIndex + Math.floor(Math.random() * 1000),
+                        name: String(item.name).trim(),
+                        category: catName,
+                        price: parseFloat(item.price) || 0,
+                        gstRate: parseFloat(item.gst) || 0,
+                        trackStock: false,
+                        stockQty: 0
+                    });
+                    itemsAdded++;
+                }
+            });
+        });
+
+        persistCategories();
+        persistMenu();
+        
+        renderCategoryDropdown(); 
+        renderCategoryFilters(); 
+        renderCategoryListUI(); 
+        renderMenuUI();
+
+        document.getElementById('aiPreviewModal').style.display = 'none';
+        pendingAiMenu = null;
+        
+        if (newCategoriesAdded > 0) {
+            showToast(`✅ Imported ${itemsAdded} items & Auto-Created ${newCategoriesAdded} new categories!`);
+        } else {
+            showToast(`✅ Successfully imported ${itemsAdded} items!`);
+        }
+
+    } catch (error) {
+        console.error(error);
+        showToast("❌ Import failed: " + error.message);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerText = "✅ Confirm & Import";
+        }
+    }
+}
+
 // ✨ 7. EXPENSES & REPORTS
 function addExpense() {
     const name = document.getElementById('expenseName').value; 
@@ -685,10 +753,6 @@ function openCheckoutModal() {
     document.getElementById('checkoutModal').style.display = 'flex';
 }
 
-function clearTable() { if(confirm("Clear this entire order?")) { tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); renderTables(); updateCartUI(); } }
-function showToast(message) { const container = document.getElementById('toast-container'), toast = document.createElement('div'); toast.className = 'toast'; toast.innerHTML = `<span>🔔</span> ${message}`; container.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(-10px)'; toast.style.transition = 'all 0.3s ease'; setTimeout(() => toast.remove(), 300); }, 3000); }
-
-
 // ✨ 9. CHECKOUT ENGINE
 async function confirmCheckout() {
     let tInfo = tablesInfo[activeTable]; 
@@ -731,6 +795,8 @@ async function confirmCheckout() {
     }
 }
 
+function clearTable() { if(confirm("Clear this entire order?")) { tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); renderTables(); updateCartUI(); } }
+function showToast(message) { const container = document.getElementById('toast-container'), toast = document.createElement('div'); toast.className = 'toast'; toast.innerHTML = `<span>🔔</span> ${message}`; container.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(-10px)'; toast.style.transition = 'all 0.3s ease'; setTimeout(() => toast.remove(), 300); }, 3000); }
 
 // ✨ 10. KITCHEN ORDER TICKET (KOT) ENGINE
 function sendToKitchen() { 
@@ -760,7 +826,6 @@ async function printKitchenTicket() {
         btn.innerText = "🖨️ Print KOT";
     }
 }
-
 
 // ✨ 11. ADVANCED ESC/POS BLUETOOTH & HTML ENGINE
 async function getLogoBytes(base64Image) {
