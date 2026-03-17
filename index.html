@@ -7,13 +7,11 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Premium Cafe POS System</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#4A2E1F">
     <link rel="apple-touch-icon" href="icon-192.png">
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -39,6 +37,41 @@
             </div>
             <input type="password" id="adminPinInput" class="pin-input" placeholder="••••" inputmode="numeric" maxlength="4">
             <button class="btn" style="width: 100%; padding: 16px; font-size: 16px; background: var(--accent);" onclick="loginAsAdmin()">👑 Login as Admin</button>
+        </div>
+    </div>
+
+    <div id="menuItemModal" class="modal-overlay" style="display: none;">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h2 id="menuFormTitle">Add New Menu Item</h2>
+            </div>
+            <div class="form-group">
+                <label>Item Name</label>
+                <input type="text" id="newItemName" placeholder="E.g., Cappuccino">
+            </div>
+            <div class="form-group">
+                <label>Category</label>
+                <select id="newItemCategory"></select>
+            </div>
+            <div style="display: flex; gap: 15px;">
+                <div class="form-group" style="flex: 1;">
+                    <label>Final Price (₹)</label>
+                    <input type="number" id="newItemPrice" placeholder="0.00" inputmode="decimal" step="0.01">
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label>GST %</label>
+                    <input type="number" id="newItemGst" placeholder="0" value="0" inputmode="decimal">
+                </div>
+            </div>
+            <div style="display: flex; gap: 15px; margin-bottom: 20px; align-items: center; background: var(--bg-surface); padding: 15px; border-radius: var(--radius-md); border: 2px solid var(--border);">
+                <input type="checkbox" id="newItemTrackStock" onchange="document.getElementById('newItemStock').style.display = this.checked ? 'block' : 'none'" style="width: 20px; height: 20px; accent-color: var(--accent);">
+                <label for="newItemTrackStock" style="margin:0; font-size: 14px; cursor:pointer; color: var(--text-dark); font-weight: 700;">Track Stock?</label>
+                <input type="number" id="newItemStock" placeholder="Qty" style="flex: 1; display: none; max-width: 100px; padding: 10px; border: 2px solid var(--border); border-radius: 8px;">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-outline" onclick="document.getElementById('menuItemModal').style.display='none'">Cancel</button>
+                <button id="addMenuBtn" class="btn" style="flex: 2; background: var(--accent);" onclick="addMenuItem()">💾 Save Item</button>
+            </div>
         </div>
     </div>
 
@@ -222,23 +255,11 @@
                     <div id="categoryListUI" style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;"></div>
                 </div>
 
-                <div class="card" style="background: var(--bg-body);">
-                    <h2 class="card-title" id="menuFormTitle" style="margin-top: 0; margin-bottom: 20px;">Add New Menu Item</h2>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-                        <div class="form-group"><label>Item Name</label><input type="text" id="newItemName" placeholder="E.g., Cappuccino"></div>
-                        <div class="form-group"><label>Category</label><select id="newItemCategory"></select></div>
-                        <div class="form-group"><label>Final Price (₹)</label><input type="number" id="newItemPrice" placeholder="0.00" inputmode="decimal" step="0.01"></div>
-                        <div class="form-group"><label>GST %</label><input type="number" id="newItemGst" placeholder="5" value="5" inputmode="decimal"></div>
-                    </div>
-                    <div style="display: flex; gap: 15px; margin-bottom: 20px; align-items: center; background: var(--bg-surface); padding: 15px; border-radius: var(--radius-md); border: 2px solid var(--border);">
-                        <input type="checkbox" id="newItemTrackStock" onchange="document.getElementById('newItemStock').style.display = this.checked ? 'block' : 'none'" style="width: 20px; height: 20px; accent-color: var(--accent);">
-                        <label for="newItemTrackStock" style="margin:0; font-size: 15px; cursor:pointer; color: var(--text-dark); font-weight: 700;">Track Inventory (Stock)?</label>
-                        <input type="number" id="newItemStock" placeholder="Current Qty" style="flex: 1; display: none; max-width: 150px; padding: 10px; border: 2px solid var(--border); border-radius: 8px;">
-                    </div>
-                    <button id="addMenuBtn" class="btn" onclick="addMenuItem()" style="background: var(--accent);">+ Save to Menu</button>
-                </div>
                 <div class="card">
-                    <div class="card-header"><h2 class="card-title">Manage Menu</h2></div>
+                    <div class="card-header" style="margin-bottom: 10px;">
+                        <h2 class="card-title">Manage Menu Database</h2>
+                        <button class="btn btn-success" onclick="openAddMenuItemModal()">➕ Add New Item</button>
+                    </div>
                     <div class="table-responsive">
                         <table class="data-table">
                             <thead><tr><th>Name</th><th>Category</th><th>Price</th><th>GST</th><th>Stock</th><th>Actions</th></tr></thead>
@@ -305,8 +326,8 @@
                         </div>
                         
                         <div class="form-group" style="background: rgba(16, 163, 127, 0.05); padding: 15px; border-radius: var(--radius-md); border: 1px dashed #10a37f;">
-                            <label style="color: #10a37f;">🤖 OpenAI API Key (For Smart Menu Import)</label>
-                            <input type="password" id="openAiKeyInput" placeholder="sk-proj-..." autocomplete="off" style="border-color: #10a37f;">
+                            <label style="color: #10a37f;">🤖 Gemini API Key (For Smart Menu Import)</label>
+                            <input type="password" id="openAiKeyInput" placeholder="AIzaSy..." autocomplete="off" style="border-color: #10a37f;">
                             <p style="font-size: 11px; color: var(--text-muted); margin-top: 5px;">Stored safely in your local offline database.</p>
                         </div>
 
@@ -400,18 +421,15 @@
         window.dispatchEvent(new Event('firebaseLoaded'));
     </script>
     
-    <script src="app.js?v=999"></script>
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                for(let registration of registrations) {
-                    registration.unregister(); // Kills the old stubborn service worker
-                }
+                for(let registration of registrations) { registration.unregister(); }
             });
         }
-        caches.keys().then(function(names) {
-            for (let name of names) caches.delete(name); // Wipes the old saved files
-        });
+        caches.keys().then(function(names) { for (let name of names) caches.delete(name); });
     </script>
+    
+    <script src="app.js?v=999"></script>
 </body>
 </html>
