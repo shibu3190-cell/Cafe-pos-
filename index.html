@@ -8,8 +8,9 @@
     <title>Premium Cafe POS System</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#3B2A22">
+    <meta name="theme-color" content="#4B2E2B">
     <link rel="apple-touch-icon" href="icon-192.png">
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -20,7 +21,7 @@
             <h2>Activate License</h2>
             <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 25px;">Connect your terminal to the cloud.</p>
             <input type="text" id="activationKeyInput" class="key-input" placeholder="XXXX-XXXX-XXXX">
-            <button class="btn btn-full" style="width: 100%; padding: 16px; font-size: 16px; background: var(--accent);" onclick="activateSoftware()">Verify & Activate</button>
+            <button class="btn btn-full" style="width: 100%; padding: 16px; font-size: 16px; background: var(--primary);" onclick="activateSoftware()">Verify & Activate</button>
         </div>
     </div>
 
@@ -35,7 +36,7 @@
                 <div style="flex: 1; height: 1px; background: var(--border);"></div>
             </div>
             <input type="password" id="adminPinInput" class="pin-input" placeholder="••••" inputmode="numeric" maxlength="4">
-            <button class="btn" style="width: 100%; padding: 16px; font-size: 16px; background: var(--accent);" onclick="loginAsAdmin()">👑 Login as Admin</button>
+            <button class="btn" style="width: 100%; padding: 16px; font-size: 16px; background: var(--primary);" onclick="loginAsAdmin()">👑 Login as Admin</button>
         </div>
     </div>
 
@@ -69,7 +70,7 @@
             </div>
             <div class="modal-actions">
                 <button class="btn btn-outline" onclick="document.getElementById('menuItemModal').style.display='none'">Cancel</button>
-                <button id="addMenuBtn" class="btn" style="flex: 2; background: var(--accent);" onclick="addMenuItem()">💾 Save Item</button>
+                <button id="addMenuBtn" class="btn" style="flex: 2; background: var(--primary);" onclick="addMenuItem()">💾 Save Item</button>
             </div>
         </div>
     </div>
@@ -88,14 +89,14 @@
     <div id="aiPreviewModal" class="modal-overlay" style="display: none;">
         <div class="modal-box" style="max-width: 500px;">
             <div class="modal-header" style="margin-bottom: 15px;">
-                <h2 style="color: #10a37f; font-size: 22px;">🤖 Menu Extracted Successfully</h2>
+                <h2 style="color: var(--success); font-size: 22px;">🤖 Menu Extracted Successfully</h2>
                 <p>Review the AI-generated menu tree below before importing.</p>
             </div>
             <div id="aiPreviewTree" style="background: var(--bg-body); padding: 20px; border-radius: var(--radius-md); border: 2px solid var(--border); font-family: monospace; font-size: 14px; max-height: 40vh; overflow-y: auto; text-align: left; line-height: 1.6; color: var(--text-dark); font-weight: 600; box-shadow: inset 0 4px 10px rgba(0,0,0,0.05);">
             </div>
             <div class="modal-actions">
                 <button class="btn btn-outline" onclick="document.getElementById('aiPreviewModal').style.display='none'">Cancel</button>
-                <button class="btn btn-success" style="flex: 2; font-size: 16px; background: #10a37f;" onclick="confirmAiImport()">✅ Confirm & Import</button>
+                <button class="btn btn-success" style="flex: 2; font-size: 16px;" onclick="confirmAiImport()">✅ Confirm & Import</button>
             </div>
         </div>
     </div>
@@ -163,7 +164,7 @@
             </div>
             <div class="modal-actions">
                 <button class="btn btn-outline" onclick="document.getElementById('editOrderModal').style.display='none'">Cancel</button>
-                <button class="btn" style="flex: 2; background: var(--accent);" onclick="saveEditedOrder()">💾 Save Changes</button>
+                <button class="btn" style="flex: 2; background: var(--primary);" onclick="saveEditedOrder()">💾 Save Changes</button>
             </div>
         </div>
     </div>
@@ -175,14 +176,14 @@
             <img id="sidebarLogo" src="" alt="Shop Logo">
             <h2 id="displayShopName">Loading...</h2>
         </div>
-        <button class="nav-btn active" id="nav-pos" onclick="switchTab('pos')"><span class="icon">🛒</span> <span class="nav-text">Point of Sale</span></button>
-        <button class="nav-btn" id="nav-menu" onclick="switchTab('menu')"><span class="icon">🍔</span> <span class="nav-text">Menu Editor</span></button>
-        <button class="nav-btn" id="nav-expenses" onclick="switchTab('expenses')"><span class="icon">📝</span> <span class="nav-text">Daily Costs</span></button>
+        <button class="nav-btn active" id="nav-pos" onclick="switchTab('pos')"><span class="icon">🛒</span> <span class="nav-text">POS</span></button>
+        <button class="nav-btn" id="nav-menu" onclick="switchTab('menu')"><span class="icon">🍔</span> <span class="nav-text">Menu</span></button>
+        <button class="nav-btn" id="nav-expenses" onclick="switchTab('expenses')"><span class="icon">📝</span> <span class="nav-text">Costs</span></button>
         <button class="nav-btn" id="nav-reports" onclick="switchTab('reports')"><span class="icon">📊</span> <span class="nav-text">Reports</span></button>
         <button class="nav-btn" id="nav-settings" onclick="switchTab('settings')"><span class="icon">⚙️</span> <span class="nav-text">Settings</span></button>
         <div style="flex-grow: 1;"></div>
-        <button class="nav-btn" style="color: var(--accent); margin-bottom: 5px;" onclick="installApp()"><span class="icon">📲</span> <span class="nav-text">Install App</span></button>
-        <button class="nav-btn" style="color: #ff8787;" onclick="lockSystem()"><span class="icon">🔒</span> <span class="nav-text">Lock Terminal</span></button>
+        <button class="nav-btn desktop-only" style="color: var(--accent); margin-bottom: 5px;" onclick="installApp()"><span class="icon">📲</span> <span class="nav-text">Install App</span></button>
+        <button class="nav-btn desktop-only" style="color: #ff8787;" onclick="lockSystem()"><span class="icon">🔒</span> <span class="nav-text">Lock</span></button>
     </div>
 
     <div class="main-wrapper">
@@ -199,13 +200,14 @@
                     <div class="pos-left">
                         <div class="tables-wrapper">
                             <div class="table-legend">
-                                <span><i style="background: #D98C21;"></i> Ordering</span>
-                                <span><i style="background: #6B7280;"></i> Kitchen</span>
-                                <span><i style="background: #B25A38;"></i> Served</span>
-                                <span><i style="background: #B53B3B;"></i> Alert</span>
+                                <span><i style="background: var(--warning);"></i> Ordering</span>
+                                <span><i style="background: #9E9E9E;"></i> Kitchen</span>
+                                <span><i style="background: var(--accent);"></i> Served</span>
+                                <span><i style="background: var(--danger);"></i> Alert</span>
                             </div>
                             <div class="table-grid" id="tableGridUI"></div>
                         </div>
+                        
                         <div class="menu-wrapper">
                             <input type="text" id="menuSearchInput" class="search-bar" placeholder="🔍 Search menu items..." onkeyup="renderMenuUI()">
                             <div class="category-scroll" id="categoryFiltersUI"></div>
@@ -215,7 +217,7 @@
                     
                     <div class="pos-right" id="cartDrawer">
                         <div class="cart-header" style="display: flex; justify-content: space-between; align-items: center;">
-                            <h3 style="margin: 0;">🛒 Table <span id="activeTableUI">1</span></h3>
+                            <h3 style="margin: 0; font-size: 18px; color: var(--primary);">🛒 TABLE <span id="activeTableUI">1</span></h3>
                             <div style="display: flex; align-items: center; gap: 10px;">
                                 <button class="btn btn-outline" style="padding: 6px; border: none; color: var(--danger); font-size: 16px;" onclick="clearTable()">🗑️</button>
                                 <button class="close-drawer-btn" onclick="toggleCartDrawer()">✖</button>
@@ -225,7 +227,7 @@
                         <div class="cart-footer">
                             <div class="total-display">
                                 <div class="total-text">
-                                    <span style="font-size: 13px; font-weight: 600; opacity: 0.9;">Grand Total</span>
+                                    <span style="font-size: 13px; font-weight: 700; opacity: 0.9;">Grand Total</span>
                                     <span class="gst" id="gstBreakdownUI">Includes ₹0.00 GST</span>
                                 </div>
                                 <h2>₹<span id="totalUI">0</span></h2>
@@ -235,38 +237,39 @@
                                 <button class="btn btn-warning" onclick="sendToKitchen()">👨‍🍳 Kitchen</button>
                                 <button class="btn" style="background: #E8E0D5; color: var(--text-dark);" onclick="markServed()">🍽️ Served</button>
                                 <button class="btn btn-danger" style="background: transparent; color: var(--danger); border: 2px solid var(--danger);" onclick="clearTable()">🗑️ Clear</button>
-                                <button class="btn btn-success btn-full" style="font-size: 16px;" onclick="openCheckoutModal()">💵 Checkout</button>
+                                <button class="btn btn-success btn-full" style="font-size: 16px; background: var(--success);" onclick="openCheckoutModal()">💵 Checkout</button>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="mobile-pos-actions">
-                    <div id="floatingCart" class="floating-cart" style="display: none;">
-                        <div class="fc-left" onclick="toggleCartDrawer()">
-                            <span class="icon">🧾</span> <span id="fc-count">0 items</span>
-                        </div>
-                        <div class="fc-center" onclick="toggleCartDrawer()">₹<span id="fc-total">0</span></div>
-                        <button class="fc-right" onclick="openCheckoutModal()">Checkout ➔</button>
+                    <div id="floatingCart" class="floating-cart" style="display: none;" onclick="openCheckoutModal()">
+                        <div class="fc-left" id="fc-count">📄 0 items</div>
+                        <div class="fc-divider"></div>
+                        <div class="fc-center" id="fc-total">₹0</div>
+                        <div class="fc-divider"></div>
+                        <div class="fc-right">Checkout ➔</div>
                     </div>
+                    
                     <div class="mini-actions">
                         <button class="btn" onclick="bookTable()">📅 Reserve</button>
-                        <button class="btn" onclick="sendToKitchen()">👨‍🍳 Kitchen</button>
-                        <button class="btn" onclick="markServed()">🍽️ Served</button>
-                        <button class="btn" onclick="toggleCartDrawer()">🛒 View Order</button>
+                        <button class="btn btn-warning" onclick="sendToKitchen()">👨‍🍳 Kitchen</button>
+                        <button class="btn btn-served" onclick="markServed()">🍽️ Served</button>
+                        <button class="btn btn-view-order" onclick="toggleCartDrawer()">🛒 View</button>
                     </div>
                 </div>
 
             </div>
 
             <div id="menu" class="view">
-                <div style="background: linear-gradient(135deg, #10a37f, #0b7a5e); padding: 18px 25px; border-radius: var(--radius-lg); margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; color: white; box-shadow: 0 8px 20px rgba(16, 163, 127, 0.25); flex-wrap: wrap; gap: 15px;">
+                <div style="background: var(--success); padding: 18px 25px; border-radius: var(--radius-lg); margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; color: white; box-shadow: var(--shadow-sm); flex-wrap: wrap; gap: 15px;">
                     <div>
                         <h3 style="margin: 0; color: white; font-size: 18px; font-weight: 800;">🤖 Smart Menu Import Engine</h3>
                         <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9; font-weight: 500;">Upload a PDF or Photo. AI auto-detects Categories, Items, Prices & GST.</p>
                     </div>
                     <input type="file" id="aiMenuUploader" accept="image/*, application/pdf" style="display: none;" onchange="processAIMenu(event)">
-                    <button class="btn" style="background: white; color: #10a37f; font-weight: 800; padding: 14px 24px; font-size: 14px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); white-space: nowrap;" onclick="document.getElementById('aiMenuUploader').click()" id="aiMenuBtn">📁 Upload File</button>
+                    <button class="btn" style="background: white; color: var(--success); font-weight: 800; padding: 14px 24px; font-size: 14px; box-shadow: var(--shadow-sm); white-space: nowrap;" onclick="document.getElementById('aiMenuUploader').click()" id="aiMenuBtn">📁 Upload File</button>
                 </div>
 
                 <div class="card" style="background: var(--bg-surface); border-bottom: 4px solid var(--primary);">
@@ -293,7 +296,7 @@
             </div>
 
             <div id="expenses" class="view">
-                <div class="card" style="background: var(--bg-body);">
+                <div class="card" style="background: var(--bg-surface);">
                     <h2 class="card-title" style="margin-bottom: 20px;">Record Daily Expense</h2>
                     <div style="display: grid; grid-template-columns: 2fr 1fr auto; gap: 15px; align-items: flex-end;">
                         <div class="form-group" style="margin-bottom: 0;"><label>Item / Vendor</label><input type="text" id="expenseName" placeholder="E.g., Milk, Sugar"></div>
@@ -317,7 +320,7 @@
                     <h2 class="card-title" style="margin: 0; font-size: 20px;">Financial Overview</h2>
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <label style="font-weight: 700; font-size: 13px; color: var(--text-dark);">DATE:</label>
-                        <input type="date" id="reportDateSelect" onchange="renderStatements()" style="padding: 10px 15px; border: 2px solid var(--border); border-radius: var(--radius-md); font-family: inherit; font-size: 14px; background: #fff; font-weight: 700; color: #000;">
+                        <input type="date" id="reportDateSelect" onchange="renderStatements()" style="padding: 10px 15px; border: 2px solid var(--border); border-radius: var(--radius-md); font-family: inherit; font-size: 14px; background: #fff; font-weight: 700; color: var(--text-dark);">
                     </div>
                 </div>
                 <div class="stats-grid">
@@ -348,9 +351,9 @@
                             <input type="text" id="displayDeviceId" readonly style="background: rgba(0,0,0,0.05); color: var(--text-muted); cursor: not-allowed; font-family: monospace; font-weight: bold;">
                         </div>
                         
-                        <div class="form-group" style="background: rgba(16, 163, 127, 0.05); padding: 15px; border-radius: var(--radius-md); border: 1px dashed #10a37f;">
-                            <label style="color: #10a37f;">🤖 Gemini API Key (For Smart Menu Import)</label>
-                            <input type="password" id="openAiKeyInput" placeholder="AIzaSy..." autocomplete="off" style="border-color: #10a37f;">
+                        <div class="form-group" style="background: rgba(46, 125, 50, 0.05); padding: 15px; border-radius: var(--radius-md); border: 1px dashed var(--success);">
+                            <label style="color: var(--success);">🤖 Gemini API Key (For Smart Menu Import)</label>
+                            <input type="password" id="openAiKeyInput" placeholder="AIzaSy..." autocomplete="off" style="border-color: var(--success);">
                             <p style="font-size: 11px; color: var(--text-muted); margin-top: 5px;">Stored safely in your local offline database.</p>
                         </div>
 
@@ -369,7 +372,7 @@
                     </div>
 
                     <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-                        <button class="btn" style="flex: 2; min-width: 200px; padding: 18px; font-size: 16px; background: var(--accent);" onclick="saveSettings()">Save All Settings</button>
+                        <button class="btn" style="flex: 2; min-width: 200px; padding: 18px; font-size: 16px; background: var(--primary);" onclick="saveSettings()">Save All Settings</button>
                         <button id="btnBleStatus" class="btn btn-outline" style="flex: 1; min-width: 150px; border-color: #3b82f6; color: #3b82f6;" onclick="connectBluetoothPrinter()">📡 Pair BLE Printer</button>
                     </div>
                 </div>
@@ -445,6 +448,6 @@
         caches.keys().then(function(names) { for (let name of names) caches.delete(name); });
     </script>
     
-    <script src="app.js?v=999"></script>
+    <script src="app.js?v=1000"></script>
 </body>
 </html>
