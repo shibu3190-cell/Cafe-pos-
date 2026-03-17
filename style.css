@@ -195,20 +195,32 @@ input:focus, select:focus { outline: none; }
     .topbar { padding: 12px 15px; }
     .topbar-title { font-size: 16px; }
     .card > div[style*="display: grid"] { grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)) !important; }
-    .menu-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; } 
-    .menu-card { height: auto; padding: 12px; }
     .cart-items-container { max-height: 40vh; }
+    
+    /* ✨ FIX: Compact POS menu for Mobile */
+    .menu-grid { grid-template-columns: repeat(auto-fill, minmax(95px, 1fr)); gap: 8px; } 
+    .menu-card { height: 95px; padding: 8px; }
+    .menu-card .name { font-size: 11px; margin-bottom: 4px; line-height: 1.1; }
+    .menu-card .price { font-size: 14px; }
+    .menu-card .cat-label { font-size: 9px; margin-bottom: 2px; }
+
+    /* Shrink the menu table so it fits */
+    .data-table th, .data-table td { padding: 10px 8px; font-size: 12px; }
+    .data-table .btn { padding: 6px 8px; font-size: 11px; }
 }
 
 @media screen and (max-width: 380px) {
     .nav-text { display: none; } 
     .nav-btn span.icon { font-size: 24px; }
-    .menu-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
     .cart-actions { grid-template-columns: 1fr; } 
     .cart-actions .btn-full { grid-column: span 1; }
     .topbar-title { font-size: 14px; }
     .topbar-date { font-size: 12px; padding: 4px 10px; }
     #offlineBadge { font-size: 9px; padding: 2px 6px; }
+    
+    /* Pack tighter on very small screens */
+    .menu-grid { grid-template-columns: repeat(auto-fill, minmax(85px, 1fr)); gap: 6px; }
+    .menu-card { height: 85px; }
 }
 
 /* --- HTML FALLBACK PRINT STYLES --- */
@@ -224,4 +236,4 @@ input:focus, select:focus { outline: none; }
     .print-line { border-bottom: 1px dashed #000; margin: 8px 0; width: 100%; }
     #printLogo { max-width: 45px; max-height: 45px; margin: 0 auto 8px auto; object-fit: contain; filter: grayscale(100%) contrast(200%); }
     .print-meta { font-size: 11px; margin: 2px 0; color: #000; }
-}
+          }
