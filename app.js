@@ -22,7 +22,14 @@ function hashString(str) {
 
 const defaultPinHash = hashString("1234");
 let shopProfile = { name: "The bong bhoj Terminal", address: "", fssai: "", gstin: "", tableCount: 10, logo: "", adminPinHash: defaultPinHash, startInvoiceNo: 1001, openAiKey: "" };
-let menuItems = [ { id: 1, name: "Espresso", price: 80.00, category: "Tea/Coffee", gstRate: 5, trackStock: true, stockQty: 28 }, { id: 2, name: "Chicken Sandwich", price: 150.00, category: "Food", gstRate: 5, trackStock: false, stockQty: 0 } ];
+
+// Included a "badge" field for the Popular tag in the demo items
+let menuItems = [ 
+    { id: 1, name: "Espresso", price: 80.00, category: "Tea/Coffee", gstRate: 5, trackStock: true, stockQty: 28 }, 
+    { id: 2, name: "Chicken Sandwich", price: 150.00, category: "Food", gstRate: 5, trackStock: false, stockQty: 0, badge: "Popular" },
+    { id: 3, name: "Gold flake", price: 8.00, category: "Cigarettes", gstRate: 0, trackStock: true, stockQty: 28 }
+];
+
 let orderHistory = []; let dailyExpenses = []; let tablesInfo = {}; let menuCategories = ["Tea/Coffee", "Cigarettes", "Food", "Other"];
 
 const myClientID = localStorage.getItem('cafeLicenseKey') || 'unregistered';
@@ -216,6 +223,7 @@ function renderMenuUI() {
 
     filteredMenu.forEach(item => {
         let stockBadge = '';
+        let popularBadge = item.badge ? `<div class="badge-popular">${item.badge}</div>` : '';
         let buttonHtml = `<button class="add-btn">+ Add</button>`;
         
         if(item.trackStock) { 
@@ -230,6 +238,7 @@ function renderMenuUI() {
 
         posGrid.innerHTML += `
         <div class="menu-card" onclick="addToCart(${item.id})">
+            ${popularBadge}
             ${stockBadge}
             <div class="cat-label">${item.category}</div>
             <div class="name">${item.name}</div>
@@ -275,7 +284,6 @@ function addMenuItem() {
 }
 
 function deleteMenuItem(id) { if(confirm("Delete this item permanently?")) { menuItems = menuItems.filter(item => item.id !== id); persistMenu(); renderMenuUI(); showToast("Deleted."); } }
-
 
 // ✨ 6. AI SMART MENU ENGINE
 let pendingAiMenu = null;
@@ -453,7 +461,7 @@ function exportHistoryToExcel() {
     const link = document.createElement("a"); link.setAttribute("href", URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }))); link.setAttribute("download", `Sales_${dateInput}.csv`); link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
 
-// ✨ 8. CART & TABLE MANAGEMENT (WITH STATUS DOTS)
+// ✨ 8. CART & TABLE MANAGEMENT
 function renderTables() {
     const grid = document.getElementById('tableGridUI'); grid.innerHTML = '';
     for(let i = 1; i <= shopProfile.tableCount; i++) {
@@ -461,7 +469,8 @@ function renderTables() {
         if (tInfo.status === 'alert') classes += ' alert'; else if (tInfo.status === 'served') classes += ' served'; else if (tInfo.status === 'saved') classes += ' saved'; else if (tInfo.status === 'occupied') classes += ' occupied'; else if (tInfo.status === 'booked') classes += ' booked';
         if (i === activeTable) classes += ' selected';
         let amt = tInfo.items.length > 0 ? `<span class="amt">₹${tInfo.items.reduce((sum, item) => sum + (item.price * item.qty), 0).toFixed(2)}</span>` : (tInfo.status === 'booked' ? `<span class="amt">Rsrvd</span>` : "");
-        // ✨ HTML Update: Adding the status dot securely inside the button ✨
+        
+        // STATUS DOT INJECTED HERE!
         grid.innerHTML += `<div class="${classes}" onclick="selectTable(${i})"><div class="table-status-dot"></div>T-${i}${amt}</div>`;
     }
 }
