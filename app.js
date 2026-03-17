@@ -1,7 +1,6 @@
 document.getElementById('topbarDate').innerText = new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 const ALERT_THRESHOLD_MS = 15 * 60 * 1000; 
 
-// Initialize PDF.js Worker
 if (window.pdfjsLib) {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 }
@@ -311,7 +310,7 @@ function saveSettings() {
     persistProfile(); persistTables(); showToast("Settings Saved!"); updateProfileVisuals();
 }
 
-// ✨ 5. DYNAMIC CATEGORIES & MENU
+// ✨ 5. DYNAMIC CATEGORIES & MENU (With Modal Logic)
 function renderCategoryDropdown() {
     const select = document.getElementById('newItemCategory');
     select.innerHTML = menuCategories.map(c => `<option value="${c}">${c}</option>`).join('');
@@ -379,6 +378,40 @@ function renderMenuUI() {
     `).join('');
 }
 
+function openAddMenuItemModal() {
+    editingMenuItemId = null;
+    renderCategoryDropdown();
+    document.getElementById('menuFormTitle').innerText = "Add New Menu Item";
+    document.getElementById('addMenuBtn').innerText = "💾 Save Item";
+    document.getElementById('newItemName').value = '';
+    document.getElementById('newItemPrice').value = '';
+    document.getElementById('newItemGst').value = '0';
+    document.getElementById('newItemTrackStock').checked = false;
+    document.getElementById('newItemStock').style.display = 'none';
+    document.getElementById('newItemStock').value = '';
+    document.getElementById('menuItemModal').style.display = 'flex';
+    setTimeout(() => { document.getElementById('newItemName').focus(); }, 100);
+}
+
+function editMenuItem(id) {
+    const item = menuItems.find(i => i.id === id);
+    if(item) {
+        renderCategoryDropdown();
+        document.getElementById('newItemName').value = item.name; 
+        document.getElementById('newItemCategory').value = item.category;
+        document.getElementById('newItemPrice').value = item.price; 
+        document.getElementById('newItemGst').value = item.gstRate || 0;
+        document.getElementById('newItemTrackStock').checked = item.trackStock || false; 
+        document.getElementById('newItemStock').style.display = item.trackStock ? 'block' : 'none'; 
+        document.getElementById('newItemStock').value = item.stockQty || '';
+        
+        editingMenuItemId = id; 
+        document.getElementById('menuFormTitle').innerText = "Edit Menu Item"; 
+        document.getElementById('addMenuBtn').innerText = "💾 Update Item"; 
+        document.getElementById('menuItemModal').style.display = 'flex';
+    }
+}
+
 function addMenuItem() {
     const name = document.getElementById('newItemName').value; 
     const price = parseFloat(document.getElementById('newItemPrice').value); 
@@ -387,31 +420,26 @@ function addMenuItem() {
     const trackStock = document.getElementById('newItemTrackStock').checked; 
     const stockQty = parseInt(document.getElementById('newItemStock').value) || 0;
 
-    if(name && price) { 
+    if(name && !isNaN(price)) { 
         if (editingMenuItemId) {
             const index = menuItems.findIndex(i => i.id === editingMenuItemId);
-            if(index > -1) menuItems[index] = { id: editingMenuItemId, name, category, price, gstRate, trackStock, stockQty };
-            editingMenuItemId = null; document.getElementById('addMenuBtn').innerText = "+ Save to Menu"; document.getElementById('menuFormTitle').innerText = "Add New Menu Item"; showToast("Item updated!");
-        } else { menuItems.push({ id: Date.now(), name, category, price, gstRate, trackStock, stockQty }); showToast("Item added!"); }
-        
-        document.getElementById('newItemName').value = ''; document.getElementById('newItemPrice').value = ''; 
-        document.getElementById('newItemTrackStock').checked = false; document.getElementById('newItemStock').style.display = 'none'; document.getElementById('newItemStock').value = '';
-        persistMenu(); renderMenuUI();
-    } else { showToast("Name and Price required."); }
-}
-
-function editMenuItem(id) {
-    const item = menuItems.find(i => i.id === id);
-    if(item) {
-        document.getElementById('newItemName').value = item.name; document.getElementById('newItemCategory').value = item.category;
-        document.getElementById('newItemPrice').value = item.price; document.getElementById('newItemGst').value = item.gstRate;
-        document.getElementById('newItemTrackStock').checked = item.trackStock || false; document.getElementById('newItemStock').style.display = item.trackStock ? 'block' : 'none'; document.getElementById('newItemStock').value = item.stockQty || '';
-        editingMenuItemId = id; document.getElementById('menuFormTitle').innerText = "Edit Menu Item"; document.getElementById('addMenuBtn').innerText = "💾 Update Item"; window.scrollTo(0,0); 
+            if(index > -1) { menuItems[index] = { id: editingMenuItemId, name, category, price, gstRate, trackStock, stockQty }; }
+            showToast("✅ Item updated & shifted!");
+        } else { 
+            menuItems.push({ id: Date.now(), name, category, price, gstRate, trackStock, stockQty }); 
+            showToast("✅ Item added!"); 
+        }
+        persistMenu(); 
+        renderMenuUI();
+        document.getElementById('menuItemModal').style.display = 'none';
+    } else { 
+        showToast("⚠️ Name and Price required."); 
     }
 }
+
 function deleteMenuItem(id) { if(confirm("Delete this item permanently?")) { menuItems = menuItems.filter(item => item.id !== id); persistMenu(); renderMenuUI(); showToast("Deleted."); } }
 
-// ✨ 6. AI SMART MENU ENGINE (With Image Compression, Gemini 2.5, Smart Categories) ✨
+// ✨ 6. AI SMART MENU ENGINE (With Image Compression, Gemini 2.5, Smart Categories)
 let pendingAiMenu = null;
 
 async function processAIMenu(event) {
@@ -534,7 +562,7 @@ async function processAIMenu(event) {
     }
 }
 
-// ✨ 1. FAULT-TOLERANT AI IMPORT ENGINE ✨
+// Fault-tolerant Import Engine
 function confirmAiImport() {
     const btn = document.querySelector('#aiPreviewModal .btn-success');
     
@@ -549,7 +577,6 @@ function confirmAiImport() {
 
         pendingAiMenu.categories.forEach((cat, catIndex) => {
             let catName = String(cat.name || cat.category || "Uncategorized").trim();
-            
             let existingCat = menuCategories.find(c => c.toLowerCase() === catName.toLowerCase());
             
             if (!existingCat) { 
@@ -559,10 +586,8 @@ function confirmAiImport() {
                 catName = existingCat; 
             }
             
-            // Check if the AI actually returned items for this category
             if(cat.items && Array.isArray(cat.items)) {
                 cat.items.forEach((item, itemIndex) => {
-                    // FIX: Catch the data no matter if Gemini uses uppercase or lowercase keys!
                     let rawName = item.name || item.title || item.ItemName || item.itemName;
                     let rawPrice = item.price !== undefined ? item.price : (item.Price !== undefined ? item.Price : 0);
                     let rawGst = item.gst !== undefined ? item.gst : (item.GST !== undefined ? item.GST : 0);
@@ -585,95 +610,16 @@ function confirmAiImport() {
 
         persistCategories();
         persistMenu();
-        
-        renderCategoryDropdown(); 
-        renderCategoryFilters(); 
-        renderCategoryListUI(); 
-        renderMenuUI();
-
+        renderCategoryDropdown(); renderCategoryFilters(); renderCategoryListUI(); renderMenuUI();
         document.getElementById('aiPreviewModal').style.display = 'none';
         pendingAiMenu = null;
-        
         showToast(`✅ Imported ${itemsAdded} items & Auto-Created ${newCategoriesAdded} categories!`);
 
     } catch (error) {
         console.error(error);
         showToast("❌ Import failed: " + error.message);
     } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerText = "✅ Confirm & Import";
-        }
-    }
-}
-
-// ✨ 2. UPGRADED EDIT FUNCTION (Category Shifting Support) ✨
-function editMenuItem(id) {
-    const item = menuItems.find(i => i.id === id);
-    if(item) {
-        document.getElementById('newItemName').value = item.name; 
-        
-        // Ensure the dropdown has the latest categories before selecting
-        renderCategoryDropdown();
-        document.getElementById('newItemCategory').value = item.category;
-        
-        document.getElementById('newItemPrice').value = item.price; 
-        document.getElementById('newItemGst').value = item.gstRate;
-        document.getElementById('newItemTrackStock').checked = item.trackStock || false; 
-        document.getElementById('newItemStock').style.display = item.trackStock ? 'block' : 'none'; 
-        document.getElementById('newItemStock').value = item.stockQty || '';
-        
-        editingMenuItemId = id; 
-        document.getElementById('menuFormTitle').innerText = "Edit Item (Shift Category Below 👇)"; 
-        document.getElementById('addMenuBtn').innerText = "💾 Update & Move Item"; 
-        
-        // Smoothly scroll the screen up to the form
-        document.getElementById('menuFormTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
-        
-        // Highlight the category box so the user sees they can shift it
-        const catBox = document.getElementById('newItemCategory');
-        catBox.style.boxShadow = "0 0 0 4px rgba(226, 94, 62, 0.4)";
-        setTimeout(() => { catBox.style.boxShadow = "inset 0 2px 4px rgba(0,0,0,0.04)"; }, 1500);
-    }
-}
-
-// ✨ 3. UPGRADED SAVE FUNCTION (Applies the Category Shift) ✨
-function addMenuItem() {
-    const name = document.getElementById('newItemName').value; 
-    const price = parseFloat(document.getElementById('newItemPrice').value); 
-    const category = document.getElementById('newItemCategory').value; // Grabs the newly shifted category
-    const gstRate = parseFloat(document.getElementById('newItemGst').value) || 0; 
-    const trackStock = document.getElementById('newItemTrackStock').checked; 
-    const stockQty = parseInt(document.getElementById('newItemStock').value) || 0;
-
-    if(name && !isNaN(price)) { 
-        if (editingMenuItemId) {
-            const index = menuItems.findIndex(i => i.id === editingMenuItemId);
-            if(index > -1) {
-                // Apply the shift!
-                menuItems[index] = { id: editingMenuItemId, name, category, price, gstRate, trackStock, stockQty };
-            }
-            editingMenuItemId = null; 
-            document.getElementById('addMenuBtn').innerText = "+ Save to Menu"; 
-            document.getElementById('menuFormTitle').innerText = "Add New Menu Item"; 
-            
-            // Force the UI back to "All" so the shifted item doesn't vanish from view
-            activeCategory = "All";
-            renderCategoryFilters();
-            
-            showToast("✅ Item updated & shifted!");
-        } else { 
-            menuItems.push({ id: Date.now(), name, category, price, gstRate, trackStock, stockQty }); 
-            showToast("✅ Item added!"); 
-        }
-        
-        document.getElementById('newItemName').value = ''; document.getElementById('newItemPrice').value = ''; 
-        document.getElementById('newItemTrackStock').checked = false; document.getElementById('newItemStock').style.display = 'none'; document.getElementById('newItemStock').value = '';
-        
-        persistMenu(); 
-        renderMenuUI();
-    } else { 
-        showToast("⚠️ Name and Price required."); 
+        if (btn) { btn.disabled = false; btn.innerText = "✅ Confirm & Import"; }
     }
 }
 
@@ -1191,6 +1137,37 @@ function installApp() {
     } 
 }
 
+// ✨ 12. GLOBAL ENTER KEY ENGINE ✨
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Enter') {
+        const activeId = document.activeElement.id;
+        if (!activeId) return;
+
+        if (activeId === 'activationKeyInput') { activateSoftware(); document.activeElement.blur(); }
+        if (activeId === 'adminPinInput') { loginAsAdmin(); document.activeElement.blur(); }
+        if (activeId === 'newCategoryName') { addCategory(); }
+        if (['newItemName', 'newItemPrice', 'newItemGst', 'newItemStock'].includes(activeId)) {
+            addMenuItem();
+            document.getElementById('newItemName').focus(); 
+        }
+        if (['expenseName', 'expenseCost'].includes(activeId)) {
+            addExpense();
+            document.getElementById('expenseName').focus(); 
+        }
+        if (['checkoutCustomerName', 'checkoutBillerName'].includes(activeId)) {
+            if (document.getElementById('checkoutModal').style.display !== 'none') confirmCheckout();
+        }
+        if (['editCustomerName', 'editBillerName'].includes(activeId)) {
+            if (document.getElementById('editOrderModal').style.display !== 'none') saveEditedOrder();
+        }
+        if (activeId === 'menuSearchInput') { document.activeElement.blur(); }
+        if (['shopNameInput', 'shopAddressInput', 'fssaiInput', 'gstinInput', 'tableCountInput', 'startInvoiceInput', 'adminPinSetup', 'openAiKeyInput'].includes(activeId)) {
+            saveSettings();
+            document.activeElement.blur();
+        }
+    }
+});
+
 // ✨ GLOBALLY EXPOSE FUNCTIONS ✨
 window.activateSoftware = activateSoftware; window.loginAsStaff = loginAsStaff; window.loginAsAdmin = loginAsAdmin;
 window.selectPayment = selectPayment; window.confirmCheckout = confirmCheckout; window.saveEditedOrder = saveEditedOrder;
@@ -1205,3 +1182,4 @@ window.editMenuItem = editMenuItem; window.deleteMenuItem = deleteMenuItem; wind
 window.reprintReceipt = reprintReceipt; window.selectTable = selectTable; window.modifyQty = modifyQty;
 window.connectBluetoothPrinter = connectBluetoothPrinter; window.printKitchenTicket = printKitchenTicket;
 window.addCategory = addCategory; window.deleteCategory = deleteCategory; window.processAIMenu = processAIMenu; window.confirmAiImport = confirmAiImport;
+window.openAddMenuItemModal = openAddMenuItemModal;
