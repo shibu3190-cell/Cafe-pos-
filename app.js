@@ -221,8 +221,10 @@ function renderMenuUI() {
         if(item.trackStock) { 
             const isLow = item.stockQty <= 5; 
             stockBadge = `<div class="stock-badge ${isLow ? 'low' : ''}">${item.stockQty} left</div>`;
-            if (item.stockQty > 5) {
-                buttonHtml = `<button class="add-btn stock">✔ In Stock</button>`;
+            if (item.stockQty > 0) {
+                buttonHtml = `<div class="in-stock-btn"><span style="color:var(--success);">✔</span> In Stock</div>`;
+            } else {
+                buttonHtml = `<div class="out-stock-btn">Out of Stock</div>`;
             }
         }
 
@@ -451,7 +453,7 @@ function exportHistoryToExcel() {
     const link = document.createElement("a"); link.setAttribute("href", URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }))); link.setAttribute("download", `Sales_${dateInput}.csv`); link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
 
-// ✨ 8. CART & TABLE MANAGEMENT
+// ✨ 8. CART & TABLE MANAGEMENT (WITH STATUS DOTS)
 function renderTables() {
     const grid = document.getElementById('tableGridUI'); grid.innerHTML = '';
     for(let i = 1; i <= shopProfile.tableCount; i++) {
@@ -459,7 +461,8 @@ function renderTables() {
         if (tInfo.status === 'alert') classes += ' alert'; else if (tInfo.status === 'served') classes += ' served'; else if (tInfo.status === 'saved') classes += ' saved'; else if (tInfo.status === 'occupied') classes += ' occupied'; else if (tInfo.status === 'booked') classes += ' booked';
         if (i === activeTable) classes += ' selected';
         let amt = tInfo.items.length > 0 ? `<span class="amt">₹${tInfo.items.reduce((sum, item) => sum + (item.price * item.qty), 0).toFixed(2)}</span>` : (tInfo.status === 'booked' ? `<span class="amt">Rsrvd</span>` : "");
-        grid.innerHTML += `<div class="${classes}" onclick="selectTable(${i})">T-${i}${amt}</div>`;
+        // ✨ HTML Update: Adding the status dot securely inside the button ✨
+        grid.innerHTML += `<div class="${classes}" onclick="selectTable(${i})"><div class="table-status-dot"></div>T-${i}${amt}</div>`;
     }
 }
 function selectTable(num) { activeTable = num; document.getElementById('activeTableUI').innerText = num; renderTables(); updateCartUI(); }
