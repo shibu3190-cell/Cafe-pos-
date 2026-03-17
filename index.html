@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Premium Cafe POS System</title>
+    <title>The Bong Bhoj Terminal</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#4B2E2B">
@@ -92,8 +92,7 @@
                 <h2 style="color: var(--success); font-size: 22px;">🤖 Menu Extracted Successfully</h2>
                 <p>Review the AI-generated menu tree below before importing.</p>
             </div>
-            <div id="aiPreviewTree" style="background: var(--bg-body); padding: 20px; border-radius: var(--radius-md); border: 2px solid var(--border); font-family: monospace; font-size: 14px; max-height: 40vh; overflow-y: auto; text-align: left; line-height: 1.6; color: var(--text-dark); font-weight: 600; box-shadow: inset 0 4px 10px rgba(0,0,0,0.05);">
-            </div>
+            <div id="aiPreviewTree" style="background: var(--bg-body); padding: 20px; border-radius: var(--radius-md); border: 2px solid var(--border); font-family: monospace; font-size: 14px; max-height: 40vh; overflow-y: auto; text-align: left; line-height: 1.6; color: var(--text-dark); font-weight: 600; box-shadow: inset 0 4px 10px rgba(0,0,0,0.05);"></div>
             <div class="modal-actions">
                 <button class="btn btn-outline" onclick="document.getElementById('aiPreviewModal').style.display='none'">Cancel</button>
                 <button class="btn btn-success" style="flex: 2; font-size: 16px;" onclick="confirmAiImport()">✅ Confirm & Import</button>
@@ -188,7 +187,7 @@
 
     <div class="main-wrapper">
         <div class="topbar">
-            <div class="topbar-title">Terminal <span id="offlineBadge">OFFLINE</span></div>
+            <div class="topbar-title">The bong bhoj Terminal <span id="offlineBadge">OFFLINE</span></div>
             <div class="topbar-date" id="topbarDate">Loading...</div>
         </div>
 
@@ -200,10 +199,10 @@
                     <div class="pos-left">
                         <div class="tables-wrapper">
                             <div class="table-legend">
-                                <span><i style="background: var(--warning);"></i> Ordering</span>
-                                <span><i style="background: #9E9E9E;"></i> Kitchen</span>
-                                <span><i style="background: var(--accent);"></i> Served</span>
-                                <span><i style="background: var(--danger);"></i> Alert</span>
+                                <span><i style="background: var(--warning);"></i> ORDERING</span>
+                                <span><i style="background: #75808A;"></i> KITCHEN</span>
+                                <span><i style="background: var(--warning);"></i> SERVED</span>
+                                <span><i style="background: var(--danger);"></i> ALERT</span>
                             </div>
                             <div class="table-grid" id="tableGridUI"></div>
                         </div>
@@ -257,12 +256,11 @@
                     
                     <div class="mini-actions">
                         <button class="btn" onclick="bookTable()">📅 Reserve</button>
-                        <button class="btn btn-warning" onclick="sendToKitchen()">👨‍🍳 Kitchen</button>
-                        <button class="btn" style="background: #E8E0D5; color: var(--text-dark);" onclick="markServed()">🍽️ Served</button>
-                        <button class="btn btn-view-order" style="background: var(--bg-surface); color: var(--accent);" onclick="toggleCartDrawer()">🛒 View</button>
+                        <button class="btn btn-warning" style="background: #E6E1D8; color: var(--primary); border: 1px solid var(--border);" onclick="sendToKitchen()">👨‍🍳 Kitchen</button>
+                        <button class="btn" style="background: #E8E0D5; color: var(--text-dark); border: 1px solid var(--border);" onclick="markServed()">🍽️ Served</button>
+                        <button class="btn btn-view-order" style="background: var(--bg-surface); color: var(--accent); border: 1px solid var(--border);" onclick="toggleCartDrawer()">🛒 View</button>
                     </div>
                 </div>
-
             </div>
 
             <div id="menu" class="view">
@@ -451,6 +449,6 @@
         caches.keys().then(function(names) { for (let name of names) caches.delete(name); });
     </script>
     
-    <script src="app.js?v=1002"></script>
+    <script src="app.js?v=1004"></script>
 </body>
 </html>
