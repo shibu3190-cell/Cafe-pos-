@@ -209,7 +209,10 @@
                         </div>
                         
                         <div class="menu-wrapper">
-                            <input type="text" id="menuSearchInput" class="search-bar" placeholder="🔍 Search menu items..." onkeyup="renderMenuUI()">
+                            <div class="search-container">
+                                <span>🔍</span>
+                                <input type="text" id="menuSearchInput" class="search-bar" placeholder="Search menu items..." onkeyup="renderMenuUI()">
+                            </div>
                             <div class="category-scroll" id="categoryFiltersUI"></div>
                             <div class="menu-grid" id="menuGridUI"></div>
                         </div>
@@ -255,8 +258,8 @@
                     <div class="mini-actions">
                         <button class="btn" onclick="bookTable()">📅 Reserve</button>
                         <button class="btn btn-warning" onclick="sendToKitchen()">👨‍🍳 Kitchen</button>
-                        <button class="btn btn-served" onclick="markServed()">🍽️ Served</button>
-                        <button class="btn btn-view-order" onclick="toggleCartDrawer()">🛒 View</button>
+                        <button class="btn" style="background: #E8E0D5; color: var(--text-dark);" onclick="markServed()">🍽️ Served</button>
+                        <button class="btn btn-view-order" style="background: var(--bg-surface); color: var(--accent);" onclick="toggleCartDrawer()">🛒 View</button>
                     </div>
                 </div>
 
@@ -448,6 +451,6 @@
         caches.keys().then(function(names) { for (let name of names) caches.delete(name); });
     </script>
     
-    <script src="app.js?v=1000"></script>
+    <script src="app.js?v=1002"></script>
 </body>
 </html>
