@@ -183,19 +183,63 @@ input:focus, select:focus { outline: none; }
 }
 
 @media screen and (max-width: 768px) {
-    body { flex-direction: column; }
-    .sidebar { width: 100%; height: auto; flex-direction: row; justify-content: space-around; padding: 8px 5px; position: fixed; bottom: 0; left: 0; border-right: none; border-top: 4px solid var(--accent); z-index: 1000; padding-bottom: max(8px, env(safe-area-inset-bottom)); box-shadow: 0 -5px 20px rgba(0,0,0,0.2); }
-    .sidebar-brand { display: none; } 
-    .nav-btn { flex-direction: column; padding: 6px 2px; font-size: 10px; gap: 4px; text-align: center; border-radius: 8px; margin-bottom: 0; flex: 1; justify-content: center; color: rgba(255,255,255,0.6); }
-    .nav-btn span.icon { font-size: 20px; } 
-    .nav-text { display: block; font-weight: 600; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; } 
-    .nav-btn.active { border-left: none; border-bottom: 4px solid var(--accent); padding-left: 2px; padding-bottom: 2px; background: rgba(255,255,255,0.08); box-shadow: none;}
-    .main-wrapper { padding-bottom: 70px; } 
-    .main-content { padding: 12px; }
-    .topbar { padding: 12px 15px; }
-    .topbar-title { font-size: 16px; }
-    .card > div[style*="display: grid"] { grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)) !important; }
-    .cart-items-container { max-height: 40vh; }
+    /* ✨ FLOATING MOBILE CART FOOTER ✨ */
+    .pos-right {
+        padding-bottom: 130px; /* Gives space so your cart items don't hide behind the footer */
+    }
+    .pos-right .cart-footer {
+        position: fixed;
+        bottom: 60px; /* Hovers perfectly above your bottom navigation menu */
+        left: 0;
+        width: 100%;
+        background: var(--bg-surface);
+        box-shadow: 0 -10px 25px rgba(0,0,0,0.15);
+        padding: 35px 15px 15px 15px; /* Huge top padding to make room for the floating button */
+        border-radius: 25px 25px 0 0;
+        z-index: 998;
+    }
+    
+    .total-display { display: none; } /* Hide bulky total box */
+
+    /* Align the 4 bottom utility buttons */
+    .cart-actions {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+    }
+    .cart-actions .btn {
+        flex: 1;
+        display: flex;
+        flex-direction: column; /* Stacks the icon on top of the text */
+        padding: 8px 4px;
+        font-size: 18px; /* Bigger emojis */
+        gap: 4px;
+        border-radius: 12px;
+    }
+    .cart-actions .btn span {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+    }
+
+    /* ✨ The Floating Checkout Pill ✨ */
+    .cart-actions .checkout-fab {
+        position: absolute;
+        top: -25px; /* Pops out of the top of the footer panel */
+        left: 50%;
+        transform: translateX(-50%);
+        width: 85%;
+        max-width: 350px;
+        height: 55px;
+        border-radius: 30px;
+        flex-direction: row;
+        justify-content: center;
+        font-size: 16px;
+        font-weight: 800;
+        box-shadow: 0 10px 20px rgba(33, 136, 56, 0.4);
+        z-index: 1000;
+    }
+    #mobileTotalUI { display: inline-block !important; opacity: 0.9; font-weight: 600; margin-left: 5px; }
     
     /* ✨ FIX: Compact POS menu for Mobile */
     .menu-grid { grid-template-columns: repeat(auto-fill, minmax(95px, 1fr)); gap: 8px; } 
