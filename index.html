@@ -224,12 +224,12 @@
                                 <h2>₹<span id="totalUI">0</span></h2>
                             </div>
                             <div class="cart-actions">
-                                <button class="btn btn-outline" onclick="bookTable()">📅 Reserve</button>
-                                <button class="btn btn-warning" onclick="sendToKitchen()">👨‍🍳 Kitchen</button>
-                                <button class="btn btn-full" style="background: #DFE3E8; color: var(--text-dark);" onclick="markServed()">🍽️ Mark Served</button>
-                                <button class="btn btn-success btn-full" style="font-size: 16px;" onclick="openCheckoutModal()">💵 Checkout</button>
-                                <button class="btn btn-danger btn-full" style="background: transparent; color: var(--danger); border: 2px solid var(--danger);" onclick="clearTable()">🗑️ Clear Table</button>
-                            </div>
+    <button class="btn btn-outline" onclick="bookTable()">📅 <span>Reserve</span></button>
+    <button class="btn btn-warning" onclick="sendToKitchen()">👨‍🍳 <span>Kitchen</span></button>
+    <button class="btn" style="background: #DFE3E8; color: var(--text-dark);" onclick="markServed()">🍽️ <span>Served</span></button>
+    <button class="btn btn-danger" style="background: transparent; color: var(--danger); border: 2px solid var(--danger);" onclick="clearTable()">🗑️ <span>Clear</span></button>
+    <button class="btn btn-success btn-full checkout-fab" onclick="openCheckoutModal()">💵 Checkout <span id="mobileTotalUI" style="display:none;"></span></button>
+</div>
                         </div>
                     </div>
                 </div>
