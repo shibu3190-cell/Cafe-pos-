@@ -310,7 +310,7 @@ function saveSettings() {
     persistProfile(); persistTables(); showToast("Settings Saved!"); updateProfileVisuals();
 }
 
-// ✨ 5. DYNAMIC CATEGORIES & MENU (With Modal Logic)
+// ✨ 5. DYNAMIC CATEGORIES & MENU (With POPUP MODAL Logic)
 function renderCategoryDropdown() {
     const select = document.getElementById('newItemCategory');
     select.innerHTML = menuCategories.map(c => `<option value="${c}">${c}</option>`).join('');
@@ -439,7 +439,8 @@ function addMenuItem() {
 
 function deleteMenuItem(id) { if(confirm("Delete this item permanently?")) { menuItems = menuItems.filter(item => item.id !== id); persistMenu(); renderMenuUI(); showToast("Deleted."); } }
 
-// ✨ 6. AI SMART MENU ENGINE (With Image Compression, Gemini 2.5, Smart Categories)
+
+// ✨ 6. AI SMART MENU ENGINE (With Compression, Gemini 2.5 Flash, Fault Tolerance)
 let pendingAiMenu = null;
 
 async function processAIMenu(event) {
@@ -562,7 +563,6 @@ async function processAIMenu(event) {
     }
 }
 
-// Fault-tolerant Import Engine
 function confirmAiImport() {
     const btn = document.querySelector('#aiPreviewModal .btn-success');
     
@@ -753,19 +753,13 @@ function updateCartUI() {
             cartDiv.innerHTML += `<div class="cart-item"><div class="cart-item-top"><span class="cart-item-name">${item.name}</span><span class="cart-item-price">₹${itemTotal.toFixed(2)}</span></div><div class="cart-item-bottom"><span class="cart-item-math">₹${item.price.toFixed(2)} each</span><div class="qty-pill"><button onclick="modifyQty(${item.id}, -1)">-</button><span>${item.qty}</span><button onclick="modifyQty(${item.id}, 1)">+</button></div></div></div>`;
         });
     }
+    
     document.getElementById('totalUI').innerText = total.toFixed(2); 
     document.getElementById('gstBreakdownUI').innerText = totalGstAmt > 0 ? `Includes ₹${totalGstAmt.toFixed(2)} GST` : "No GST Applied";
     
-    // ✨ FIX: Push the live math into the floating mobile button!
     const mobileTotal = document.getElementById('mobileTotalUI');
     if (mobileTotal) mobileTotal.innerText = " • ₹" + total.toFixed(2);
     
-    cartDiv.scrollTop = cartDiv.scrollHeight;
-}
-            cartDiv.innerHTML += `<div class="cart-item"><div class="cart-item-top"><span class="cart-item-name">${item.name}</span><span class="cart-item-price">₹${itemTotal.toFixed(2)}</span></div><div class="cart-item-bottom"><span class="cart-item-math">₹${item.price.toFixed(2)} each</span><div class="qty-pill"><button onclick="modifyQty(${item.id}, -1)">-</button><span>${item.qty}</span><button onclick="modifyQty(${item.id}, 1)">+</button></div></div></div>`;
-        });
-    }
-    document.getElementById('totalUI').innerText = total.toFixed(2); document.getElementById('gstBreakdownUI').innerText = totalGstAmt > 0 ? `Includes ₹${totalGstAmt.toFixed(2)} GST` : "No GST Applied";
     cartDiv.scrollTop = cartDiv.scrollHeight;
 }
 
