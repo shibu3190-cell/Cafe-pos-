@@ -21,8 +21,8 @@ function hashString(str) {
 }
 
 const defaultPinHash = hashString("1234");
-let shopProfile = { name: "Royal Cafe", address: "", fssai: "", gstin: "", tableCount: 10, logo: "", adminPinHash: defaultPinHash, startInvoiceNo: 1001, openAiKey: "" };
-let menuItems = [ { id: 1, name: "Espresso", price: 80.00, category: "Tea/Coffee", gstRate: 5, trackStock: false, stockQty: 0 }, { id: 2, name: "Chicken Sandwich", price: 150.00, category: "Food", gstRate: 5, trackStock: false, stockQty: 0 } ];
+let shopProfile = { name: "The bong bhoj Terminal", address: "", fssai: "", gstin: "", tableCount: 10, logo: "", adminPinHash: defaultPinHash, startInvoiceNo: 1001, openAiKey: "" };
+let menuItems = [ { id: 1, name: "Espresso", price: 80.00, category: "Tea/Coffee", gstRate: 5, trackStock: true, stockQty: 28 }, { id: 2, name: "Chicken Sandwich", price: 150.00, category: "Food", gstRate: 5, trackStock: false, stockQty: 0 } ];
 let orderHistory = []; let dailyExpenses = []; let tablesInfo = {}; let menuCategories = ["Tea/Coffee", "Cigarettes", "Food", "Other"];
 
 const myClientID = localStorage.getItem('cafeLicenseKey') || 'unregistered';
@@ -216,15 +216,23 @@ function renderMenuUI() {
 
     filteredMenu.forEach(item => {
         let stockBadge = '';
-        if(item.trackStock) { const isLow = item.stockQty <= 5; stockBadge = `<div class="stock-badge ${isLow ? 'low' : ''}">${item.stockQty} left</div>`; }
-        // ✨ HTML Update: The Premium Menu Card Layout ✨
+        let buttonHtml = `<button class="add-btn">+ Add</button>`;
+        
+        if(item.trackStock) { 
+            const isLow = item.stockQty <= 5; 
+            stockBadge = `<div class="stock-badge ${isLow ? 'low' : ''}">${item.stockQty} left</div>`;
+            if (item.stockQty > 5) {
+                buttonHtml = `<button class="add-btn stock">✔ In Stock</button>`;
+            }
+        }
+
         posGrid.innerHTML += `
         <div class="menu-card" onclick="addToCart(${item.id})">
             ${stockBadge}
             <div class="cat-label">${item.category}</div>
             <div class="name">${item.name}</div>
             <div class="price">₹${item.price.toFixed(2)}</div>
-            <button class="add-btn">+ Add</button>
+            ${buttonHtml}
         </div>`;
     });
     
@@ -476,7 +484,6 @@ function modifyQty(itemId, delta) {
     }
 }
 
-// ✨ UPDATE CART UI (FEEDS THE FLOATING MOBILE BUTTON) ✨
 function updateCartUI() {
     const cartDiv = document.getElementById('cartUI'); cartDiv.innerHTML = '';
     let total = 0; let totalGstAmt = 0; let currentCart = tablesInfo[activeTable].items || [];
@@ -493,29 +500,24 @@ function updateCartUI() {
     document.getElementById('totalUI').innerText = total.toFixed(2); 
     document.getElementById('gstBreakdownUI').innerText = totalGstAmt > 0 ? `Includes ₹${totalGstAmt.toFixed(2)} GST` : "No GST Applied";
     
-    // Feed data to the mobile floating button
     let totalItems = currentCart.reduce((sum, item) => sum + item.qty, 0);
     const fc = document.getElementById('floatingCart');
-    const mobileTotal = document.getElementById('mobileTotalUI');
     
     if (fc) {
         if (totalItems > 0) {
             fc.style.display = 'flex';
-            document.getElementById('fc-count').innerText = `${totalItems} items`;
-            document.getElementById('fc-total').innerText = total.toFixed(2);
-            if(mobileTotal) mobileTotal.innerText = " • ₹" + total.toFixed(2);
+            document.getElementById('fc-count').innerText = `📄 ${totalItems} items`;
+            document.getElementById('fc-total').innerText = `₹${total.toFixed(2)}`;
         } else {
             fc.style.display = 'none';
+            document.getElementById('cartDrawer').classList.remove('open');
         }
     }
     
     cartDiv.scrollTop = cartDiv.scrollHeight;
 }
 
-// ✨ MOBILE CART DRAWER TOGGLE ✨
-function toggleCartDrawer() {
-    document.getElementById('cartDrawer').classList.toggle('open');
-}
+function toggleCartDrawer() { document.getElementById('cartDrawer').classList.toggle('open'); }
 
 function markServed() { let tInfo = tablesInfo[activeTable]; if(tInfo.items.length === 0) return showToast("Table empty!"); tInfo.status = 'served'; tInfo.lastReminder = Date.now(); persistTables(); renderTables(); showToast(`Table ${activeTable} served. Timer started.`); }
 setInterval(() => { const now = Date.now(); let needsSync = false; for(let i = 1; i <= shopProfile.tableCount; i++) { let tInfo = tablesInfo[i]; if(tInfo.status === 'served' || tInfo.status === 'alert') { if(tInfo.lastReminder && (now - tInfo.lastReminder) >= ALERT_THRESHOLD_MS) { tInfo.status = 'alert'; tInfo.lastReminder = now; needsSync = true; showToast(`⚠️ Table ${i} unpaid!`); } } } if(needsSync) { persistTables(); renderTables(); } }, 5000); 
@@ -561,15 +563,13 @@ async function confirmCheckout() {
         persistMenu(); orderHistory.unshift(newOrder); persistHistoryFirebase(); 
         tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); 
         pushToGoogleSheetsQueue('addOrder', newOrder); renderTables(); updateCartUI();
-        
-        // Auto-close mobile drawer on checkout
         document.getElementById('cartDrawer').classList.remove('open');
         showToast("✅ Payment recorded & Table cleared.");
     } catch (e) { console.error(e); showToast("❌ Error processing checkout."); } 
     finally { payBtn.disabled = false; payBtn.innerText = "🖨️ Pay & Print"; }
 }
 
-function clearTable() { if(confirm("Clear this entire order?")) { tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); renderTables(); updateCartUI(); } }
+function clearTable() { if(confirm("Clear this entire order?")) { tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); renderTables(); updateCartUI(); document.getElementById('cartDrawer').classList.remove('open'); } }
 function showToast(message) { const container = document.getElementById('toast-container'), toast = document.createElement('div'); toast.className = 'toast'; toast.innerHTML = `<span>🔔</span> ${message}`; container.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(-10px)'; toast.style.transition = 'all 0.3s ease'; setTimeout(() => toast.remove(), 300); }, 3000); }
 
 // ✨ 10. KITCHEN ORDER TICKET (KOT) ENGINE
@@ -807,7 +807,7 @@ document.addEventListener('keydown', function(event) {
 
 window.activateSoftware = activateSoftware; window.loginAsStaff = loginAsStaff; window.loginAsAdmin = loginAsAdmin;
 window.selectPayment = selectPayment; window.confirmCheckout = confirmCheckout; window.saveEditedOrder = saveEditedOrder;
-window.switchTab = switchTab; window.lockSystem = lockSystem;
+window.switchTab = switchTab; window.installApp = installApp; window.lockSystem = lockSystem;
 window.renderMenuUI = renderMenuUI; window.bookTable = bookTable; window.sendToKitchen = sendToKitchen;
 window.markServed = markServed; window.openCheckoutModal = openCheckoutModal; window.clearTable = clearTable;
 window.addMenuItem = addMenuItem; window.addExpense = addExpense; window.editExpense = editExpense; 
