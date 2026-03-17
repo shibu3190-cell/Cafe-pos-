@@ -224,12 +224,14 @@
                                 <h2>₹<span id="totalUI">0</span></h2>
                             </div>
                             <div class="cart-actions">
-    <button class="btn btn-outline" onclick="bookTable()">📅 <span>Reserve</span></button>
-    <button class="btn btn-warning" onclick="sendToKitchen()">👨‍🍳 <span>Kitchen</span></button>
-    <button class="btn" style="background: #DFE3E8; color: var(--text-dark);" onclick="markServed()">🍽️ <span>Served</span></button>
-    <button class="btn btn-danger" style="background: transparent; color: var(--danger); border: 2px solid var(--danger);" onclick="clearTable()">🗑️ <span>Clear</span></button>
-    <button class="btn btn-success btn-full checkout-fab" onclick="openCheckoutModal()">💵 Checkout <span id="mobileTotalUI" style="display:none;"></span></button>
-</div>
+                                <button class="btn btn-outline" onclick="bookTable()">📅 <span>Reserve</span></button>
+                                <button class="btn btn-warning" onclick="sendToKitchen()">👨‍🍳 <span>Kitchen</span></button>
+                                <button class="btn" style="background: #DFE3E8; color: var(--text-dark);" onclick="markServed()">🍽️ <span>Served</span></button>
+                                <button class="btn btn-danger" style="background: transparent; color: var(--danger); border: 2px solid var(--danger);" onclick="clearTable()">🗑️ <span>Clear</span></button>
+                                <button class="btn btn-success btn-full checkout-fab" onclick="openCheckoutModal()">
+                                    💵 Checkout <span id="mobileTotalUI"></span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -377,15 +379,7 @@
             <p class="print-meta" id="printBillerRow" style="display:none;">Biller: <span id="printBiller"></span></p>
             <div class="print-line"></div>
         </div>
-        
         <div id="printItems"></div>
-        
-        <div style="display:none;">
-            <div class="print-row" style="font-size: 12px; color: #444;"><span>Total Base Value</span><span id="printSubtotal"></span></div>
-            <div class="print-row" style="font-size: 12px; color: #444;"><span>Total CGST</span><span id="printCgstAmt"></span></div>
-            <div class="print-row" style="font-size: 12px; color: #444;"><span>Total SGST</span><span id="printSgstAmt"></span></div>
-        </div>
-
         <div class="print-line"></div>
         <div class="print-row" style="font-weight: bold; font-size: 16px;"><span>GRAND TOTAL</span><span id="printTotal"></span></div>
         <div class="print-center" style="margin-top: 20px;"><p>Thank You!</p></div>
