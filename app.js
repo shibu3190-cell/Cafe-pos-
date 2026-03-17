@@ -23,7 +23,6 @@ function hashString(str) {
 const defaultPinHash = hashString("1234");
 let shopProfile = { name: "The bong bhoj Terminal", address: "", fssai: "", gstin: "", tableCount: 10, logo: "", adminPinHash: defaultPinHash, startInvoiceNo: 1001, openAiKey: "" };
 
-// Included a "badge" field for the Popular tag in the demo items
 let menuItems = [ 
     { id: 1, name: "Espresso", price: 80.00, category: "Tea/Coffee", gstRate: 5, trackStock: true, stockQty: 28 }, 
     { id: 2, name: "Chicken Sandwich", price: 150.00, category: "Food", gstRate: 5, trackStock: false, stockQty: 0, badge: "Popular" },
@@ -215,6 +214,45 @@ function deleteCategory(cat) {
 
 function filterMenu(category) { activeCategory = category; renderCategoryFilters(); renderMenuUI(); }
 
+// ✨ 8. CART & TABLE MANAGEMENT (WITH STATUS DOTS)
+function renderTables() {
+    const grid = document.getElementById('tableGridUI'); grid.innerHTML = '';
+    for(let i = 1; i <= shopProfile.tableCount; i++) {
+        const tInfo = tablesInfo[i]; let classes = 'table-btn';
+        if (tInfo.status === 'alert') classes += ' alert'; else if (tInfo.status === 'served') classes += ' served'; else if (tInfo.status === 'saved') classes += ' saved'; else if (tInfo.status === 'occupied') classes += ' occupied'; else if (tInfo.status === 'booked') classes += ' booked';
+        if (i === activeTable) classes += ' selected';
+        let amt = tInfo.items.length > 0 ? `<span class="amt">₹${tInfo.items.reduce((sum, item) => sum + (item.price * item.qty), 0).toFixed(2)}</span>` : (tInfo.status === 'booked' ? `<span class="amt">Rsrvd</span>` : "");
+        
+        grid.innerHTML += `<div class="${classes}" onclick="selectTable(${i})"><div class="table-status-dot"></div>T-${i}${amt}</div>`;
+    }
+}
+function selectTable(num) { activeTable = num; document.getElementById('activeTableUI').innerText = num; renderTables(); updateCartUI(); renderMenuUI(); }
+function bookTable() { let tInfo = tablesInfo[activeTable]; if(tInfo.items.length > 0) return showToast("Cannot reserve active table!"); tInfo.status = tInfo.status === 'booked' ? 'empty' : 'booked'; persistTables(); renderTables(); }
+
+function addToCart(itemId, event) {
+    if (event) event.stopPropagation();
+    let tInfo = tablesInfo[activeTable]; const menuItem = menuItems.find(m => m.id === itemId); if(!menuItem) return;
+    const existing = tInfo.items.find(i => i.id === itemId);
+    if (menuItem.trackStock && (existing ? existing.qty + 1 : 1) > menuItem.stockQty) return showToast(`Only ${menuItem.stockQty} left!`);
+    if(existing) existing.qty++; else tInfo.items.push({ id: menuItem.id, name: menuItem.name, price: menuItem.price, gstRate: menuItem.gstRate, qty: 1 });
+    if(tInfo.status === 'empty' || tInfo.status === 'booked') tInfo.status = 'occupied'; 
+    persistTables(); renderTables(); updateCartUI(); renderMenuUI();
+}
+
+function modifyQty(itemId, delta, event) {
+    if (event) event.stopPropagation();
+    let tInfo = tablesInfo[activeTable]; const item = tInfo.items.find(i => i.id === itemId); const menuItem = menuItems.find(m => m.id === itemId);
+    if (item) {
+        if (delta > 0 && menuItem && menuItem.trackStock && (item.qty + delta) > menuItem.stockQty) return showToast(`Only ${menuItem.stockQty} left!`);
+        item.qty += delta; if(item.qty <= 0) tInfo.items = tInfo.items.filter(i => i.id !== itemId); 
+        if(tInfo.items.length === 0 && tInfo.status !== 'booked') { tInfo.status = 'empty'; tInfo.savedTime = null; tInfo.lastReminder = null; }
+        persistTables(); renderTables(); updateCartUI(); renderMenuUI();
+    }
+}
+
+function clearTable() { if(confirm("Clear this entire order?")) { tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); renderTables(); updateCartUI(); renderMenuUI(); document.getElementById('cartDrawer').classList.remove('open'); } }
+
+// ✨ DYNAMIC ZOMATO-STYLE MENU GRID UPDATER ✨
 function renderMenuUI() {
     const posGrid = document.getElementById('menuGridUI'); posGrid.innerHTML = '';
     const searchText = (document.getElementById('menuSearchInput').value || '').toLowerCase();
@@ -224,20 +262,36 @@ function renderMenuUI() {
     filteredMenu.forEach(item => {
         let stockBadge = '';
         let popularBadge = item.badge ? `<div class="badge-popular">${item.badge}</div>` : '';
-        let buttonHtml = `<button class="add-btn">+ Add</button>`;
+        let buttonHtml = '';
         
+        let qtyInCart = 0;
+        if (tablesInfo[activeTable]) {
+            const existing = tablesInfo[activeTable].items.find(i => i.id === item.id);
+            if (existing) qtyInCart = existing.qty;
+        }
+
         if(item.trackStock) { 
-            const isLow = item.stockQty <= 5; 
-            stockBadge = `<div class="stock-badge ${isLow ? 'low' : ''}">${item.stockQty} left</div>`;
-            if (item.stockQty > 0) {
-                buttonHtml = `<div class="in-stock-btn"><span style="color:var(--success);">✔</span> In Stock</div>`;
-            } else {
-                buttonHtml = `<div class="out-stock-btn">Out of Stock</div>`;
-            }
+            const isLow = item.stockQty <= 5 && item.stockQty > 0; 
+            if(isLow) stockBadge = `<div class="stock-badge low">${item.stockQty} left</div>`;
+            else if (item.stockQty > 5) stockBadge = `<div class="stock-badge">${item.stockQty} left</div>`;
+        }
+
+        // Live Cart Quantity Integration
+        if (item.trackStock && item.stockQty <= 0) {
+            buttonHtml = `<div class="out-stock-btn">Out of Stock</div>`;
+        } else if (qtyInCart > 0) {
+            buttonHtml = `
+            <div class="item-qty-control" onclick="event.stopPropagation()">
+                <button onclick="modifyQty(${item.id}, -1, event)">−</button>
+                <span>${qtyInCart}</span>
+                <button onclick="addToCart(${item.id}, event)">+</button>
+            </div>`;
+        } else {
+            buttonHtml = `<button class="add-btn">+ Add</button>`;
         }
 
         posGrid.innerHTML += `
-        <div class="menu-card" onclick="addToCart(${item.id})">
+        <div class="menu-card" onclick="addToCart(${item.id}, event)">
             ${popularBadge}
             ${stockBadge}
             <div class="cat-label">${item.category}</div>
@@ -249,6 +303,7 @@ function renderMenuUI() {
     
     document.getElementById('menuTableBody').innerHTML = menuItems.map(item => `<tr><td style="font-weight: 600; color: var(--text-dark);">${item.name}</td><td>${item.category}</td><td style="color: var(--accent); font-weight: 800;">₹${item.price.toFixed(2)}</td><td>${item.gstRate}%</td><td><strong style="color: ${item.trackStock && item.stockQty <= 5 ? 'var(--danger)' : 'inherit'};">${item.trackStock ? item.stockQty : '∞'}</strong></td><td><button class="btn btn-outline" style="padding: 6px 10px; font-size: 13px;" onclick="editMenuItem(${item.id})">Edit</button><button class="btn btn-danger" style="padding: 6px 10px; font-size: 13px;" onclick="deleteMenuItem(${item.id})">Del</button></td></tr>`).join('');
 }
+
 
 function openAddMenuItemModal() {
     editingMenuItemId = null; renderCategoryDropdown();
@@ -284,6 +339,7 @@ function addMenuItem() {
 }
 
 function deleteMenuItem(id) { if(confirm("Delete this item permanently?")) { menuItems = menuItems.filter(item => item.id !== id); persistMenu(); renderMenuUI(); showToast("Deleted."); } }
+
 
 // ✨ 6. AI SMART MENU ENGINE
 let pendingAiMenu = null;
@@ -461,41 +517,6 @@ function exportHistoryToExcel() {
     const link = document.createElement("a"); link.setAttribute("href", URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }))); link.setAttribute("download", `Sales_${dateInput}.csv`); link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
 
-// ✨ 8. CART & TABLE MANAGEMENT
-function renderTables() {
-    const grid = document.getElementById('tableGridUI'); grid.innerHTML = '';
-    for(let i = 1; i <= shopProfile.tableCount; i++) {
-        const tInfo = tablesInfo[i]; let classes = 'table-btn';
-        if (tInfo.status === 'alert') classes += ' alert'; else if (tInfo.status === 'served') classes += ' served'; else if (tInfo.status === 'saved') classes += ' saved'; else if (tInfo.status === 'occupied') classes += ' occupied'; else if (tInfo.status === 'booked') classes += ' booked';
-        if (i === activeTable) classes += ' selected';
-        let amt = tInfo.items.length > 0 ? `<span class="amt">₹${tInfo.items.reduce((sum, item) => sum + (item.price * item.qty), 0).toFixed(2)}</span>` : (tInfo.status === 'booked' ? `<span class="amt">Rsrvd</span>` : "");
-        
-        // STATUS DOT INJECTED HERE!
-        grid.innerHTML += `<div class="${classes}" onclick="selectTable(${i})"><div class="table-status-dot"></div>T-${i}${amt}</div>`;
-    }
-}
-function selectTable(num) { activeTable = num; document.getElementById('activeTableUI').innerText = num; renderTables(); updateCartUI(); }
-function bookTable() { let tInfo = tablesInfo[activeTable]; if(tInfo.items.length > 0) return showToast("Cannot reserve active table!"); tInfo.status = tInfo.status === 'booked' ? 'empty' : 'booked'; persistTables(); renderTables(); }
-
-function addToCart(itemId) {
-    let tInfo = tablesInfo[activeTable]; const menuItem = menuItems.find(m => m.id === itemId); if(!menuItem) return;
-    const existing = tInfo.items.find(i => i.id === itemId);
-    if (menuItem.trackStock && (existing ? existing.qty + 1 : 1) > menuItem.stockQty) return showToast(`Only ${menuItem.stockQty} left!`);
-    if(existing) existing.qty++; else tInfo.items.push({ id: menuItem.id, name: menuItem.name, price: menuItem.price, gstRate: menuItem.gstRate, qty: 1 });
-    if(tInfo.status === 'empty' || tInfo.status === 'booked') tInfo.status = 'occupied'; 
-    persistTables(); renderTables(); updateCartUI();
-}
-
-function modifyQty(itemId, delta) {
-    let tInfo = tablesInfo[activeTable]; const item = tInfo.items.find(i => i.id === itemId); const menuItem = menuItems.find(m => m.id === itemId);
-    if (item) {
-        if (delta > 0 && menuItem && menuItem.trackStock && (item.qty + delta) > menuItem.stockQty) return showToast(`Only ${menuItem.stockQty} left!`);
-        item.qty += delta; if(item.qty <= 0) tInfo.items = tInfo.items.filter(i => i.id !== itemId); 
-        if(tInfo.items.length === 0 && tInfo.status !== 'booked') { tInfo.status = 'empty'; tInfo.savedTime = null; tInfo.lastReminder = null; }
-        persistTables(); renderTables(); updateCartUI();
-    }
-}
-
 function updateCartUI() {
     const cartDiv = document.getElementById('cartUI'); cartDiv.innerHTML = '';
     let total = 0; let totalGstAmt = 0; let currentCart = tablesInfo[activeTable].items || [];
@@ -574,15 +595,13 @@ async function confirmCheckout() {
         tInfo.items.forEach(cartItem => { const mItem = menuItems.find(m => m.id === cartItem.id); if (mItem && mItem.trackStock) { mItem.stockQty -= cartItem.qty; if (mItem.stockQty < 0) mItem.stockQty = 0; } });
         persistMenu(); orderHistory.unshift(newOrder); persistHistoryFirebase(); 
         tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); 
-        pushToGoogleSheetsQueue('addOrder', newOrder); renderTables(); updateCartUI();
+        pushToGoogleSheetsQueue('addOrder', newOrder); renderTables(); updateCartUI(); renderMenuUI();
         document.getElementById('cartDrawer').classList.remove('open');
         showToast("✅ Payment recorded & Table cleared.");
     } catch (e) { console.error(e); showToast("❌ Error processing checkout."); } 
     finally { payBtn.disabled = false; payBtn.innerText = "🖨️ Pay & Print"; }
 }
 
-function clearTable() { if(confirm("Clear this entire order?")) { tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); renderTables(); updateCartUI(); document.getElementById('cartDrawer').classList.remove('open'); } }
-function showToast(message) { const container = document.getElementById('toast-container'), toast = document.createElement('div'); toast.className = 'toast'; toast.innerHTML = `<span>🔔</span> ${message}`; container.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(-10px)'; toast.style.transition = 'all 0.3s ease'; setTimeout(() => toast.remove(), 300); }, 3000); }
 
 // ✨ 10. KITCHEN ORDER TICKET (KOT) ENGINE
 function sendToKitchen() { 
