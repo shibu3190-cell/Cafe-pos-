@@ -14,7 +14,7 @@
     --danger: #D32F2F; 
     --warning: #D98C21;         
     
-    --shadow-sm: 0 4px 10px rgba(75, 46, 43, 0.06); 
+    --shadow-sm: 0 4px 10px rgba(75, 46, 43, 0.05); 
     --shadow-md: 0 8px 20px rgba(75, 46, 43, 0.08); 
     --shadow-lg: 0 15px 35px rgba(75, 46, 43, 0.12);
     --radius-md: 14px; --radius-lg: 20px; --radius-xl: 24px;
@@ -50,7 +50,7 @@ input:focus, select:focus { outline: none; }
 .main-wrapper { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; background: var(--bg-body); }
 .topbar { background: transparent; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; z-index: 50; flex-shrink: 0; }
 .topbar-title { font-weight: 800; font-size: 22px; color: var(--text-dark); display: flex; align-items: center; gap: 10px;}
-.topbar-date { font-weight: 700; color: var(--accent); font-size: 13px; background: transparent; border: 2px solid var(--accent); padding: 6px 18px; border-radius: 30px; opacity: 0.9;}
+.topbar-date { font-weight: 700; color: #A05A3A; font-size: 13px; background: #F0E6D8; border: 1px solid #E8D7C4; padding: 6px 18px; border-radius: 30px; opacity: 0.9;}
 
 #offlineBadge { display: none; background: var(--danger); color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; letter-spacing: 0.5px; animation: pulseAlert 2s infinite; }
 
@@ -88,18 +88,31 @@ input:focus, select:focus { outline: none; }
 .table-legend i { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
 
 .table-grid { display: flex; overflow-x: auto; gap: 12px; padding-bottom: 12px; scrollbar-width: none; }
-.table-btn { flex: 0 0 auto; width: 85px; height: 85px; background: var(--bg-surface); border: none; border-radius: 16px; cursor: pointer; text-align: center; font-weight: 800; font-size: 18px; transition: 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: var(--shadow-md); color: var(--text-dark); }
+/* ✨ THE GOLDEN BORDER & STATUS DOT ✨ */
+.table-btn { position: relative; flex: 0 0 auto; width: 85px; height: 85px; background: var(--bg-surface); border: none; border-radius: 16px; cursor: pointer; text-align: center; font-weight: 800; font-size: 18px; transition: 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(75, 46, 43, 0.05); color: var(--text-dark); }
+.table-status-dot { position: absolute; top: 8px; left: 8px; width: 10px; height: 10px; border-radius: 50%; display: none; }
+.table-btn.occupied .table-status-dot { display: block; background: var(--warning); }
+.table-btn.saved .table-status-dot { display: block; background: #9E9E9E; }
+.table-btn.served .table-status-dot { display: block; background: var(--accent); }
+.table-btn.alert .table-status-dot { display: block; background: var(--danger); box-shadow: 0 0 6px var(--danger); }
 .table-btn span.amt { font-size: 11px; font-weight: 700; margin-top: 4px; opacity: 0.8; }
-.table-btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
-.table-btn.selected { background: var(--primary); color: white; box-shadow: 0 8px 20px rgba(75, 46, 43, 0.4); transform: scale(1.05); }
+.table-btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.table-btn.selected { 
+    background: var(--primary); 
+    color: white; 
+    box-shadow: 0 0 0 2px var(--bg-body), 0 0 0 5px var(--accent), 0 10px 20px rgba(0,0,0,0.2); 
+    transform: scale(1.02); 
+}
 
 .menu-wrapper { display: flex; flex-direction: column; gap: 15px; flex: 1; min-height: 0; }
 .category-scroll { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; flex-shrink: 0; scrollbar-width: none; }
 .cat-chip { padding: 12px 24px; background: var(--bg-surface); border: none; border-radius: 30px; cursor: pointer; white-space: nowrap; font-size: 14px; font-weight: 700; color: var(--text-dark); transition: 0.2s; box-shadow: var(--shadow-sm); }
 .cat-chip:hover { color: var(--accent); }
-.cat-chip.active { background: var(--primary); color: white; box-shadow: 0 6px 15px rgba(75, 46, 43, 0.2); }
+.cat-chip.active { background: var(--primary-dark); color: white; box-shadow: 0 6px 15px rgba(75, 46, 43, 0.2); }
 
-.search-bar { width: 100%; padding: 16px 20px; border: none; border-radius: 30px; font-size: 15px; font-weight: 600; background: var(--bg-surface); box-shadow: var(--shadow-sm); transition: 0.3s; color: var(--text-dark); }
+.search-container { position: relative; width: 100%; display: flex; align-items: center; }
+.search-container span { position: absolute; left: 20px; font-size: 18px; color: var(--text-muted); }
+.search-bar { width: 100%; padding: 16px 20px 16px 50px; border: none; border-radius: 30px; font-size: 15px; font-weight: 600; background: var(--bg-surface); box-shadow: var(--shadow-sm); transition: 0.3s; color: var(--text-dark); }
 .search-bar:focus { box-shadow: 0 0 0 3px rgba(75, 46, 43, 0.1); }
 
 /* ✨ EXACT MENU CARD MATCH ✨ */
@@ -110,10 +123,14 @@ input:focus, select:focus { outline: none; }
 .menu-card .cat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 800; margin-bottom: 8px; letter-spacing: 0.5px; }
 .menu-card .name { font-weight: 700; font-size: 14px; color: var(--text-dark); margin-bottom: 8px; line-height: 1.3; }
 .menu-card .price { font-weight: 800; color: var(--accent); font-size: 18px; margin-bottom: 12px; margin-top: auto; }
-.menu-card .add-btn { background: var(--primary); color: #fff; border: none; border-radius: 20px; padding: 10px 10px; font-weight: 700; font-size: 13px; width: 100%; transition: 0.2s; pointer-events: none; }
-.menu-card .add-btn.stock { background: var(--bg-body); color: var(--success); }
-.stock-badge { position: absolute; top: -8px; right: -8px; background: var(--primary); color: white; font-size: 11px; padding: 4px 10px; border-radius: 12px; font-weight: 800; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
-.stock-badge.low { background: var(--danger); }
+
+/* The Add & Stock Buttons */
+.menu-card .add-btn { background: var(--primary-dark); color: #fff; border: none; border-radius: 20px; padding: 8px 10px; font-weight: 700; font-size: 13px; width: 100%; transition: 0.2s; pointer-events: none; }
+.menu-card .in-stock-btn { background: var(--bg-surface); color: var(--text-dark); border: 1px solid var(--border); border-radius: 20px; padding: 8px 10px; font-weight: 600; font-size: 12px; width: 100%; pointer-events: none; }
+.menu-card .out-stock-btn { background: var(--bg-surface); color: var(--danger); border: 1px solid var(--danger); border-radius: 20px; padding: 8px 10px; font-weight: 600; font-size: 12px; width: 100%; pointer-events: none; }
+
+/* The Top-Right Stock Badge */
+.stock-badge { position: absolute; top: -8px; right: -8px; background: var(--primary-dark); color: white; font-size: 11px; padding: 4px 10px; border-radius: 12px; font-weight: 800; box-shadow: 0 4px 8px rgba(0,0,0,0.3); border: 2px solid #fff; }
 
 /* ✨ DESKTOP CART DRAWER ✨ */
 .pos-right { width: 38%; min-width: 380px; max-width: 500px; flex-shrink: 0; background: var(--bg-surface); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); display: flex; flex-direction: column; overflow: hidden; transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
@@ -137,7 +154,8 @@ input:focus, select:focus { outline: none; }
 
 .cart-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .cart-actions .btn { padding: 12px; font-size: 14px; border-radius: 12px; }
-.cart-actions .btn-full { grid-column: span 2; padding: 16px; font-size: 16px; text-transform: uppercase; border-radius: 16px;}
+/* Golden Border on Desktop Checkout Too */
+.cart-actions .btn-success { grid-column: span 2; padding: 16px; font-size: 16px; text-transform: uppercase; border-radius: 16px; border: 2px solid var(--accent); box-shadow: 0 0 10px rgba(198, 124, 78, 0.3);}
 
 .close-drawer-btn { display: none; background: var(--bg-body); border: none; border-radius: 50%; width: 36px; height: 36px; font-size: 16px; font-weight: bold; color: var(--text-dark); align-items: center; justify-content: center; }
 .desktop-only { display: flex; }
@@ -175,7 +193,7 @@ input:focus, select:focus { outline: none; }
     
     .desktop-actions .btn:not(.btn-success) { display: none; }
     .desktop-actions { display: flex; }
-    .desktop-actions .btn-success { width: 100%; padding: 18px; border-radius: 16px; font-size: 18px; }
+    .desktop-actions .btn-success { width: 100%; padding: 18px; border-radius: 16px; font-size: 18px; border: 2px solid var(--accent); }
     #pos.view.active { overflow-y: auto; }
     .desktop-only { display: none; }
 }
@@ -203,12 +221,12 @@ input:focus, select:focus { outline: none; }
     .menu-card .name { font-size: 12px; }
     .menu-card .price { font-size: 15px; }
 
-    /* ✨ EXACT FLOATING BOTTOM CART MAGIC ✨ */
+    /* ✨ EXACT FLOATING BOTTOM CART MAGIC (WITH GOLDEN BORDER) ✨ */
     .mobile-pos-actions {
         display: flex;
         flex-direction: column;
         position: fixed;
-        bottom: 70px; /* Above bottom nav */
+        bottom: 70px;
         left: 0;
         width: 100%;
         padding: 10px 15px;
@@ -219,13 +237,14 @@ input:focus, select:focus { outline: none; }
     .mobile-pos-actions > * { pointer-events: auto; }
 
     .floating-cart {
-        background: var(--primary);
+        background: var(--primary-dark);
         color: #fff;
         border-radius: 35px;
         display: flex;
         justify-content: space-between;
         align-items: center;
         padding: 10px 20px;
+        border: 1.5px solid var(--accent); /* THE GOLDEN CHECKOUT BORDER */
         box-shadow: 0 10px 25px rgba(75, 46, 43, 0.4);
         margin-bottom: 12px;
         cursor: pointer;
@@ -233,7 +252,7 @@ input:focus, select:focus { outline: none; }
     .fc-left { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.9); }
     .fc-divider { width: 1px; height: 20px; background: rgba(255,255,255,0.2); margin: 0 15px; }
     .fc-center { font-size: 18px; font-weight: 800; }
-    .fc-right { font-weight: 700; font-size: 16px; margin-left: auto; }
+    .fc-right { font-weight: 700; font-size: 16px; margin-left: auto; color: var(--accent); }
 
     /* Mini Action Buttons below cart */
     .mini-actions { display: flex; gap: 8px; }
