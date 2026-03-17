@@ -1,9 +1,7 @@
 document.getElementById('topbarDate').innerText = new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 const ALERT_THRESHOLD_MS = 15 * 60 * 1000; 
 
-if (window.pdfjsLib) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-}
+if (window.pdfjsLib) { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }
 
 function getLocalISODate(dateObj = new Date()) {
     const yyyy = dateObj.getFullYear();
@@ -25,30 +23,18 @@ function hashString(str) {
 const defaultPinHash = hashString("1234");
 let shopProfile = { name: "Royal Cafe", address: "", fssai: "", gstin: "", tableCount: 10, logo: "", adminPinHash: defaultPinHash, startInvoiceNo: 1001, openAiKey: "" };
 let menuItems = [ { id: 1, name: "Espresso", price: 80.00, category: "Tea/Coffee", gstRate: 5, trackStock: false, stockQty: 0 }, { id: 2, name: "Chicken Sandwich", price: 150.00, category: "Food", gstRate: 5, trackStock: false, stockQty: 0 } ];
-let orderHistory = [];
-let dailyExpenses = [];
-let tablesInfo = {}; 
-let menuCategories = ["Tea/Coffee", "Cigarettes", "Food", "Other"];
+let orderHistory = []; let dailyExpenses = []; let tablesInfo = {}; let menuCategories = ["Tea/Coffee", "Cigarettes", "Food", "Other"];
 
 const myClientID = localStorage.getItem('cafeLicenseKey') || 'unregistered';
-let currentRole = null; 
-let activeTable = 1; 
-let activeCategory = "All"; 
-let editingMenuItemId = null;
-let editingExpenseId = null; 
-let syncQueue = [];
+let currentRole = null; let activeTable = 1; let activeCategory = "All"; let editingMenuItemId = null; let editingExpenseId = null; let syncQueue = [];
 
-// ✨ 1. ROBUST INDEXED-DB ENGINE
 const idb = {
-    db: null,
-    initPromise: null,
+    db: null, initPromise: null,
     init: function() {
         if (this.initPromise) return this.initPromise;
         this.initPromise = new Promise((resolve, reject) => {
             const req = indexedDB.open('CafePOS_DB', 1);
-            req.onupgradeneeded = (e) => {
-                if (!e.target.result.objectStoreNames.contains('store')) e.target.result.createObjectStore('store');
-            };
+            req.onupgradeneeded = (e) => { if (!e.target.result.objectStoreNames.contains('store')) e.target.result.createObjectStore('store'); };
             req.onsuccess = (e) => { this.db = e.target.result; resolve(); };
             req.onerror = (e) => reject();
         });
@@ -56,17 +42,11 @@ const idb = {
     },
     get: async function(key) {
         await this.init();
-        return new Promise((resolve) => {
-            const tx = this.db.transaction('store', 'readonly');
-            const req = tx.objectStore('store').get(key);
-            req.onsuccess = () => resolve(req.result);
-            req.onerror = () => resolve(null);
-        });
+        return new Promise((resolve) => { const tx = this.db.transaction('store', 'readonly'); const req = tx.objectStore('store').get(key); req.onsuccess = () => resolve(req.result); req.onerror = () => resolve(null); });
     },
     set: async function(key, val) {
         await this.init();
-        const tx = this.db.transaction('store', 'readwrite');
-        tx.objectStore('store').put(val, key);
+        const tx = this.db.transaction('store', 'readwrite'); tx.objectStore('store').put(val, key);
     }
 };
 
@@ -80,54 +60,35 @@ async function loadFromLocal() {
     const lQueue = await idb.get('cafe_syncQueue'); if(lQueue) syncQueue = lQueue;
     
     const lTab = await idb.get('cafe_tables'); 
-    if (lTab) { tablesInfo = lTab; } 
-    else { for(let i = 1; i <= shopProfile.tableCount; i++) tablesInfo[i] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; }
-    
+    if (lTab) { tablesInfo = lTab; } else { for(let i = 1; i <= shopProfile.tableCount; i++) tablesInfo[i] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; }
     updateAllUI();
 }
 
 function saveToLocal() {
-    idb.set('cafe_profile', shopProfile);
-    idb.set('cafe_menu', menuItems);
-    idb.set('cafe_categories', menuCategories);
-    idb.set('cafe_history', orderHistory);
-    idb.set('cafe_expenses', dailyExpenses);
-    idb.set('cafe_tables', tablesInfo);
+    idb.set('cafe_profile', shopProfile); idb.set('cafe_menu', menuItems); idb.set('cafe_categories', menuCategories);
+    idb.set('cafe_history', orderHistory); idb.set('cafe_expenses', dailyExpenses); idb.set('cafe_tables', tablesInfo);
 }
 
 function updateAllUI() {
-    updateProfileVisuals(); 
-    renderCategoryDropdown(); 
-    renderCategoryListUI(); 
-    renderTables(); 
-    renderMenuUI();
+    updateProfileVisuals(); renderCategoryDropdown(); renderCategoryListUI(); renderTables(); renderMenuUI();
     if(document.getElementById('pos').classList.contains('active')) updateCartUI();
     if(document.getElementById('reports').classList.contains('active')) renderStatements();
     if(document.getElementById('expenses').classList.contains('active')) renderExpensesUI();
     
-    document.getElementById('shopNameInput').value = shopProfile.name || '';
-    document.getElementById('shopAddressInput').value = shopProfile.address || '';
-    document.getElementById('fssaiInput').value = shopProfile.fssai || '';
-    document.getElementById('gstinInput').value = shopProfile.gstin || '';
-    document.getElementById('tableCountInput').value = shopProfile.tableCount || 10;
-    document.getElementById('startInvoiceInput').value = shopProfile.startInvoiceNo || 1001; 
+    document.getElementById('shopNameInput').value = shopProfile.name || ''; document.getElementById('shopAddressInput').value = shopProfile.address || '';
+    document.getElementById('fssaiInput').value = shopProfile.fssai || ''; document.getElementById('gstinInput').value = shopProfile.gstin || '';
+    document.getElementById('tableCountInput').value = shopProfile.tableCount || 10; document.getElementById('startInvoiceInput').value = shopProfile.startInvoiceNo || 1001; 
     document.getElementById('openAiKeyInput').value = shopProfile.openAiKey || '';
 }
 
-// ✨ 2. FIREBASE CLOUD SYNC
 window.addEventListener('firebaseLoaded', () => {
     if(!navigator.onLine) return; 
     const dataRef = window.firebaseRef(window.firebaseDB, `clients/${myClientID}`);
     window.firebaseOnValue(dataRef, (snapshot) => {
         if (snapshot.exists()) {
             const data = snapshot.val();
-            shopProfile = data.profile || shopProfile;
-            if(!shopProfile.startInvoiceNo) shopProfile.startInvoiceNo = 1001;
-            menuItems = data.menu || [];
-            menuCategories = data.categories || menuCategories;
-            orderHistory = data.history || [];
-            dailyExpenses = data.expenses || [];
-            
+            shopProfile = data.profile || shopProfile; if(!shopProfile.startInvoiceNo) shopProfile.startInvoiceNo = 1001;
+            menuItems = data.menu || []; menuCategories = data.categories || menuCategories; orderHistory = data.history || []; dailyExpenses = data.expenses || [];
             let fetchedTables = data.tables || {};
             for(let i = 1; i <= shopProfile.tableCount; i++) {
                 if(fetchedTables[i]) { tablesInfo[i] = fetchedTables[i]; if(!tablesInfo[i].items) tablesInfo[i].items = []; } 
@@ -148,47 +109,27 @@ function persistProfile() { saveToLocal(); if(navigator.onLine && window.firebas
 
 function updateConnectionStatus() {
     const badge = document.getElementById('offlineBadge');
-    if (navigator.onLine) {
-        badge.style.display = 'none';
-        if (syncQueue.length > 0) processSyncQueue();
-        persistAllToFirebase(); 
-        showToast("🌐 Online: Synced with Cloud");
-    } else {
-        badge.style.display = 'inline-block';
-        showToast("⚠️ Offline: Saving data locally");
-    }
+    if (navigator.onLine) { badge.style.display = 'none'; if (syncQueue.length > 0) processSyncQueue(); persistAllToFirebase(); showToast("🌐 Online: Synced with Cloud"); } 
+    else { badge.style.display = 'inline-block'; showToast("⚠️ Offline: Saving data locally"); }
 }
-window.addEventListener('online', updateConnectionStatus);
-window.addEventListener('offline', updateConnectionStatus);
+window.addEventListener('online', updateConnectionStatus); window.addEventListener('offline', updateConnectionStatus);
 
 let isSyncing = false;
-function pushToGoogleSheetsQueue(action, payloadData) {
-    syncQueue.push({ action: action, data: payloadData });
-    idb.set('cafe_syncQueue', syncQueue);
-    processSyncQueue();
-}
+function pushToGoogleSheetsQueue(action, payloadData) { syncQueue.push({ action: action, data: payloadData }); idb.set('cafe_syncQueue', syncQueue); processSyncQueue(); }
 
 async function processSyncQueue() {
-    if (isSyncing || syncQueue.length === 0 || !navigator.onLine) return;
-    isSyncing = true;
+    if (isSyncing || syncQueue.length === 0 || !navigator.onLine) return; isSyncing = true;
     const scriptURL = 'https://script.google.com/macros/s/AKfycbyZiNTkt5uHGhAy9efNz-6bKYw41YrMbM4CBnuAFTTxJU_ubGpF4VnDuj6zS73NlA3S2w/exec';
     while (syncQueue.length > 0) {
         const item = syncQueue[0];
-        try {
-            await fetch(scriptURL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: item.action, clientId: myClientID, data: item.data }) });
-            syncQueue.shift(); idb.set('cafe_syncQueue', syncQueue);
-        } catch (e) { break; }
+        try { await fetch(scriptURL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: item.action, clientId: myClientID, data: item.data }) }); syncQueue.shift(); idb.set('cafe_syncQueue', syncQueue); } catch (e) { break; }
     }
     isSyncing = false;
 }
 
-// ✨ 3. DEVICE ACTIVATION
 function getOrCreateDeviceId() {
     let deviceId = localStorage.getItem('cafeDeviceId');
-    if (!deviceId) {
-        deviceId = 'TERM-' + Math.random().toString(36).substr(2, 9).toUpperCase() + '-' + Math.floor(Date.now() / 1000).toString(36).toUpperCase();
-        localStorage.setItem('cafeDeviceId', deviceId);
-    }
+    if (!deviceId) { deviceId = 'TERM-' + Math.random().toString(36).substr(2, 9).toUpperCase() + '-' + Math.floor(Date.now() / 1000).toString(36).toUpperCase(); localStorage.setItem('cafeDeviceId', deviceId); }
     return deviceId;
 }
 
@@ -196,157 +137,73 @@ async function activateSoftware() {
     if(!navigator.onLine) return alert("You must be online to activate the software.");
     const enteredKey = document.getElementById('activationKeyInput').value.trim().toUpperCase();
     if (!enteredKey) return showToast("Please enter a key.");
-    const btn = document.querySelector('#activationOverlay .btn');
-    btn.innerText = "⏳ Verifying & Locking Device..."; btn.disabled = true;
-
-    const deviceId = getOrCreateDeviceId(); 
-    const scriptURL = 'https://script.google.com/macros/s/AKfycbyZiNTkt5uHGhAy9efNz-6bKYw41YrMbM4CBnuAFTTxJU_ubGpF4VnDuj6zS73NlA3S2w/exec';
+    const btn = document.querySelector('#activationOverlay .btn'); btn.innerText = "⏳ Verifying & Locking Device..."; btn.disabled = true;
+    const deviceId = getOrCreateDeviceId(); const scriptURL = 'https://script.google.com/macros/s/AKfycbyZiNTkt5uHGhAy9efNz-6bKYw41YrMbM4CBnuAFTTxJU_ubGpF4VnDuj6zS73NlA3S2w/exec';
     try {
-        const response = await fetch(`${scriptURL}?action=verifyKey&key=${enteredKey}&deviceId=${deviceId}`);
-        const data = await response.json();
-        if (data.valid) {
-            localStorage.setItem('cafeSoftwareActivated', 'true'); 
-            localStorage.setItem('cafeActivationDate', Date.now().toString()); 
-            localStorage.setItem('cafeLicenseKey', enteredKey); 
-            alert(`Welcome, ${data.clientName}! License Activated & Locked to this Device.`); 
-            location.reload(); 
-        } else { alert(data.message); btn.innerText = "Verify & Activate"; btn.disabled = false; }
+        const response = await fetch(`${scriptURL}?action=verifyKey&key=${enteredKey}&deviceId=${deviceId}`); const data = await response.json();
+        if (data.valid) { localStorage.setItem('cafeSoftwareActivated', 'true'); localStorage.setItem('cafeActivationDate', Date.now().toString()); localStorage.setItem('cafeLicenseKey', enteredKey); alert(`Welcome, ${data.clientName}! License Activated.`); location.reload(); } 
+        else { alert(data.message); btn.innerText = "Verify & Activate"; btn.disabled = false; }
     } catch (e) { alert("Network Error."); btn.innerText = "Verify & Activate"; btn.disabled = false; }
 }
 
 async function performRemoteLicenseCheck() {
-    const savedKey = localStorage.getItem('cafeLicenseKey');
-    if(!savedKey || !navigator.onLine) return;
-    const deviceId = getOrCreateDeviceId();
-    const scriptURL = 'https://script.google.com/macros/s/AKfycbyZiNTkt5uHGhAy9efNz-6bKYw41YrMbM4CBnuAFTTxJU_ubGpF4VnDuj6zS73NlA3S2w/exec';
-    try {
-        const response = await fetch(`${scriptURL}?action=verifyKey&key=${savedKey}&deviceId=${deviceId}`);
-        const data = await response.json();
-        if (!data.valid) {
-            localStorage.removeItem('cafeSoftwareActivated'); localStorage.removeItem('cafeActivationDate'); localStorage.removeItem('cafeLicenseKey');
-            alert("⚠️ SECURITY ALERT ⚠️\n\n" + data.message); location.reload(); 
-        }
-    } catch (e) { console.log("Background check skipped."); }
+    const savedKey = localStorage.getItem('cafeLicenseKey'); if(!savedKey || !navigator.onLine) return;
+    const deviceId = getOrCreateDeviceId(); const scriptURL = 'https://script.google.com/macros/s/AKfycbyZiNTkt5uHGhAy9efNz-6bKYw41YrMbM4CBnuAFTTxJU_ubGpF4VnDuj6zS73NlA3S2w/exec';
+    try { const response = await fetch(`${scriptURL}?action=verifyKey&key=${savedKey}&deviceId=${deviceId}`); const data = await response.json(); if (!data.valid) { localStorage.removeItem('cafeSoftwareActivated'); localStorage.removeItem('cafeActivationDate'); localStorage.removeItem('cafeLicenseKey'); alert("⚠️ SECURITY ALERT ⚠️\n\n" + data.message); location.reload(); } } catch (e) { console.log("Background check skipped."); }
 }
 
 window.onload = async function() {
-    document.getElementById('displayDeviceId').value = getOrCreateDeviceId();
-    await loadFromLocal();
-    if (!navigator.onLine) document.getElementById('offlineBadge').style.display = 'inline-block';
-
-    const isAct = localStorage.getItem('cafeSoftwareActivated');
-    const actDate = localStorage.getItem('cafeActivationDate');
-    
-    if (!isAct || !actDate || myClientID === 'unregistered') {
-        document.getElementById('activationOverlay').style.display = 'flex'; return; 
-    }
-    if ((Date.now() - parseInt(actDate)) / (1000 * 60 * 60 * 24) > 200) {
-        localStorage.removeItem('cafeSoftwareActivated'); localStorage.removeItem('cafeActivationDate'); localStorage.removeItem('cafeLicenseKey');
-        alert("Your license has expired."); document.getElementById('activationOverlay').style.display = 'flex'; return; 
-    } else {
-        document.getElementById('activationOverlay').style.display = 'none';
-        if(currentRole === null) document.getElementById('loginOverlay').style.display = 'flex';
-        if(navigator.onLine) performRemoteLicenseCheck();
-    }
-    document.getElementById('reportDateSelect').value = getLocalISODate(); 
-    checkDailyReset(); processSyncQueue(); renderCategoryFilters(); 
+    document.getElementById('displayDeviceId').value = getOrCreateDeviceId(); await loadFromLocal(); if (!navigator.onLine) document.getElementById('offlineBadge').style.display = 'inline-block';
+    const isAct = localStorage.getItem('cafeSoftwareActivated'); const actDate = localStorage.getItem('cafeActivationDate');
+    if (!isAct || !actDate || myClientID === 'unregistered') { document.getElementById('activationOverlay').style.display = 'flex'; return; }
+    if ((Date.now() - parseInt(actDate)) / (1000 * 60 * 60 * 24) > 200) { localStorage.removeItem('cafeSoftwareActivated'); localStorage.removeItem('cafeActivationDate'); localStorage.removeItem('cafeLicenseKey'); alert("Your license has expired."); document.getElementById('activationOverlay').style.display = 'flex'; return; } 
+    else { document.getElementById('activationOverlay').style.display = 'none'; if(currentRole === null) document.getElementById('loginOverlay').style.display = 'flex'; if(navigator.onLine) performRemoteLicenseCheck(); }
+    document.getElementById('reportDateSelect').value = getLocalISODate(); checkDailyReset(); processSyncQueue(); renderCategoryFilters(); 
 }
 
 function checkDailyReset() {
     const today = new Date().toLocaleDateString();
-    if (localStorage.getItem('cafeLastRunDate') && localStorage.getItem('cafeLastRunDate') !== today) {
-        for(let i = 1; i <= shopProfile.tableCount; i++) tablesInfo[i] = { items: [], status: 'empty', savedTime: null, lastReminder: null };
-        persistTables(); showToast("New day started! Tables reset.");
-    }
+    if (localStorage.getItem('cafeLastRunDate') && localStorage.getItem('cafeLastRunDate') !== today) { for(let i = 1; i <= shopProfile.tableCount; i++) tablesInfo[i] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); showToast("New day started! Tables reset."); }
     localStorage.setItem('cafeLastRunDate', today);
 }
 
 function factoryReset() {
-    if(prompt("Type 'DELETE' in all caps to confirm:") === "DELETE") {
-        if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}`), null);
-        localStorage.clear(); 
-        indexedDB.deleteDatabase('CafePOS_DB');
-        location.reload(); 
-    }
+    if(prompt("Type 'DELETE' in all caps to confirm:") === "DELETE") { if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}`), null); localStorage.clear(); indexedDB.deleteDatabase('CafePOS_DB'); location.reload(); }
 }
 
 function loginAsStaff() { currentRole = 'staff'; document.getElementById('loginOverlay').style.display = 'none'; enforcePermissions(); showToast("Logged in as Staff"); }
-function loginAsAdmin() {
-    if (hashString(document.getElementById('adminPinInput').value) === shopProfile.adminPinHash) {
-        currentRole = 'admin'; document.getElementById('loginOverlay').style.display = 'none'; document.getElementById('adminPinInput').value = ''; enforcePermissions(); showToast("Admin Access Granted");
-    } else { showToast("Incorrect PIN!"); }
-}
+function loginAsAdmin() { if (hashString(document.getElementById('adminPinInput').value) === shopProfile.adminPinHash) { currentRole = 'admin'; document.getElementById('loginOverlay').style.display = 'none'; document.getElementById('adminPinInput').value = ''; enforcePermissions(); showToast("Admin Access Granted"); } else { showToast("Incorrect PIN!"); } }
 function lockSystem() { currentRole = null; document.getElementById('loginOverlay').style.display = 'flex'; switchTab('pos'); enforcePermissions(); }
 function enforcePermissions() { ['nav-menu', 'nav-expenses', 'nav-reports', 'nav-settings'].forEach(id => currentRole === 'staff' ? document.getElementById(id).classList.add('locked') : document.getElementById(id).classList.remove('locked')); }
-function switchTab(tabId) {
-    if (currentRole === 'staff' && tabId !== 'pos') return showToast("Admin access required.");
-    document.querySelectorAll('.view, .nav-btn').forEach(el => el.classList.remove('active'));
-    document.getElementById(tabId).classList.add('active'); document.getElementById('nav-' + tabId).classList.add('active');
-    if(tabId === 'reports') renderStatements(); 
-}
+function switchTab(tabId) { if (currentRole === 'staff' && tabId !== 'pos') return showToast("Admin access required."); document.querySelectorAll('.view, .nav-btn').forEach(el => el.classList.remove('active')); document.getElementById(tabId).classList.add('active'); document.getElementById('nav-' + tabId).classList.add('active'); if(tabId === 'reports') renderStatements(); }
 
-// ✨ 4. PROFILE & SETTINGS
 function updateProfileVisuals() {
-    document.getElementById('displayShopName').innerText = shopProfile.name;
-    document.querySelector('.topbar-title').childNodes[0].nodeValue = shopProfile.name + " Terminal ";
-    document.getElementById('printShopName').innerText = shopProfile.name;
-    document.getElementById('printShopAddress').innerText = shopProfile.address;
-    document.getElementById('printFssai').innerText = shopProfile.fssai ? `FSSAI: ${shopProfile.fssai}` : "";
-    document.getElementById('printGstin').innerText = shopProfile.gstin ? `GSTIN: ${shopProfile.gstin}` : "";
+    document.getElementById('displayShopName').innerText = shopProfile.name; document.querySelector('.topbar-title').childNodes[0].nodeValue = shopProfile.name;
+    document.getElementById('printShopName').innerText = shopProfile.name; document.getElementById('printShopAddress').innerText = shopProfile.address;
+    document.getElementById('printFssai').innerText = shopProfile.fssai ? `FSSAI: ${shopProfile.fssai}` : ""; document.getElementById('printGstin').innerText = shopProfile.gstin ? `GSTIN: ${shopProfile.gstin}` : "";
     if (shopProfile.logo) { document.getElementById('sidebarLogo').src = shopProfile.logo; document.getElementById('sidebarLogo').style.display = 'block'; document.getElementById('printLogo').src = shopProfile.logo; document.getElementById('printLogo').style.display = 'block'; }
 }
 function loadLogo(event) { const file = event.target.files[0]; if (file) { const reader = new FileReader(); reader.onload = e => { shopProfile.logo = e.target.result; updateProfileVisuals(); persistProfile(); }; reader.readAsDataURL(file); } }
 function saveSettings() {
-    shopProfile.name = document.getElementById('shopNameInput').value; shopProfile.address = document.getElementById('shopAddressInput').value;
-    shopProfile.fssai = document.getElementById('fssaiInput').value; shopProfile.gstin = document.getElementById('gstinInput').value;
-    shopProfile.tableCount = parseInt(document.getElementById('tableCountInput').value);
-    const newStartNo = parseInt(document.getElementById('startInvoiceInput').value);
-    if(newStartNo) shopProfile.startInvoiceNo = newStartNo;
+    shopProfile.name = document.getElementById('shopNameInput').value; shopProfile.address = document.getElementById('shopAddressInput').value; shopProfile.fssai = document.getElementById('fssaiInput').value; shopProfile.gstin = document.getElementById('gstinInput').value; shopProfile.tableCount = parseInt(document.getElementById('tableCountInput').value); const newStartNo = parseInt(document.getElementById('startInvoiceInput').value); if(newStartNo) shopProfile.startInvoiceNo = newStartNo;
     if(document.getElementById('adminPinSetup').value.length >= 4) { shopProfile.adminPinHash = hashString(document.getElementById('adminPinSetup').value); document.getElementById('adminPinSetup').value = ''; }
-    
     shopProfile.openAiKey = document.getElementById('openAiKeyInput').value.trim();
-    
     for(let i = 1; i <= shopProfile.tableCount; i++) if(!tablesInfo[i]) tablesInfo[i] = { items: [], status: 'empty', savedTime: null, lastReminder: null };
     persistProfile(); persistTables(); showToast("Settings Saved!"); updateProfileVisuals();
 }
 
-// ✨ 5. DYNAMIC CATEGORIES & MENU (With POPUP MODAL Logic)
-function renderCategoryDropdown() {
-    const select = document.getElementById('newItemCategory');
-    select.innerHTML = menuCategories.map(c => `<option value="${c}">${c}</option>`).join('');
-}
-
-function renderCategoryFilters() { 
-    document.getElementById('categoryFiltersUI').innerHTML = ''; 
-    ["All", ...menuCategories].forEach(cat => { 
-        document.getElementById('categoryFiltersUI').innerHTML += `<div class="cat-chip ${cat === activeCategory ? 'active' : ''}" onclick="filterMenu('${cat}')">${cat}</div>`; 
-    }); 
-}
-
-function renderCategoryListUI() {
-    const container = document.getElementById('categoryListUI');
-    container.innerHTML = menuCategories.map(c => `<span class="cat-chip" style="display:inline-flex; align-items:center; gap:8px;">${c} <b style="color:var(--danger); cursor:pointer; font-size:16px;" onclick="deleteCategory('${c}')">×</b></span>`).join('');
-}
+function renderCategoryDropdown() { const select = document.getElementById('newItemCategory'); select.innerHTML = menuCategories.map(c => `<option value="${c}">${c}</option>`).join(''); }
+function renderCategoryFilters() { document.getElementById('categoryFiltersUI').innerHTML = ''; ["All", ...menuCategories].forEach(cat => { document.getElementById('categoryFiltersUI').innerHTML += `<div class="cat-chip ${cat === activeCategory ? 'active' : ''}" onclick="filterMenu('${cat}')">${cat}</div>`; }); }
+function renderCategoryListUI() { const container = document.getElementById('categoryListUI'); container.innerHTML = menuCategories.map(c => `<span class="cat-chip" style="display:inline-flex; align-items:center; gap:8px;">${c} <b style="color:var(--danger); cursor:pointer; font-size:16px;" onclick="deleteCategory('${c}')">×</b></span>`).join(''); }
 
 function addCategory() {
     const cat = document.getElementById('newCategoryName').value.trim();
-    if(cat && !menuCategories.includes(cat)) {
-        menuCategories.push(cat);
-        document.getElementById('newCategoryName').value = '';
-        persistCategories(); 
-        renderCategoryDropdown(); renderCategoryFilters(); renderCategoryListUI();
-        showToast("Category added!");
-    } else if (menuCategories.includes(cat)) { showToast("Category already exists."); }
+    if(cat && !menuCategories.includes(cat)) { menuCategories.push(cat); document.getElementById('newCategoryName').value = ''; persistCategories(); renderCategoryDropdown(); renderCategoryFilters(); renderCategoryListUI(); showToast("Category added!"); } 
+    else if (menuCategories.includes(cat)) { showToast("Category already exists."); }
 }
 
 function deleteCategory(cat) {
-    if(confirm(`Delete category "${cat}"?`)) {
-        menuCategories = menuCategories.filter(c => c !== cat);
-        if(activeCategory === cat) activeCategory = "All";
-        persistCategories();
-        renderCategoryDropdown(); renderCategoryFilters(); renderCategoryListUI(); renderMenuUI();
-        showToast("Category deleted.");
-    }
+    if(confirm(`Delete category "${cat}"?`)) { menuCategories = menuCategories.filter(c => c !== cat); if(activeCategory === cat) activeCategory = "All"; persistCategories(); renderCategoryDropdown(); renderCategoryFilters(); renderCategoryListUI(); renderMenuUI(); showToast("Category deleted."); }
 }
 
 function filterMenu(category) { activeCategory = category; renderCategoryFilters(); renderMenuUI(); }
@@ -359,108 +216,68 @@ function renderMenuUI() {
 
     filteredMenu.forEach(item => {
         let stockBadge = '';
-        if(item.trackStock) {
-            const isLow = item.stockQty <= 5;
-            stockBadge = `<div class="stock-badge ${isLow ? 'low' : ''}">${item.stockQty} left</div>`;
-        }
-        posGrid.innerHTML += `<div class="menu-card" onclick="addToCart(${item.id})">${stockBadge}<div class="cat-label">${item.category}</div><div class="name">${item.name}</div><div class="price">₹${item.price.toFixed(2)}</div></div>`;
+        if(item.trackStock) { const isLow = item.stockQty <= 5; stockBadge = `<div class="stock-badge ${isLow ? 'low' : ''}">${item.stockQty} left</div>`; }
+        // ✨ HTML Update: The Premium Menu Card Layout ✨
+        posGrid.innerHTML += `
+        <div class="menu-card" onclick="addToCart(${item.id})">
+            ${stockBadge}
+            <div class="cat-label">${item.category}</div>
+            <div class="name">${item.name}</div>
+            <div class="price">₹${item.price.toFixed(2)}</div>
+            <button class="add-btn">+ Add</button>
+        </div>`;
     });
     
-    document.getElementById('menuTableBody').innerHTML = menuItems.map(item => `
-        <tr>
-            <td style="font-weight: 600; color: var(--text-dark);">${item.name}</td><td>${item.category}</td><td style="color: var(--accent); font-weight: 800;">₹${item.price.toFixed(2)}</td><td>${item.gstRate}%</td>
-            <td><strong style="color: ${item.trackStock && item.stockQty <= 5 ? 'var(--danger)' : 'inherit'};">${item.trackStock ? item.stockQty : '∞'}</strong></td>
-            <td>
-                <button class="btn btn-outline" style="padding: 6px 10px; font-size: 13px;" onclick="editMenuItem(${item.id})">Edit</button>
-                <button class="btn btn-danger" style="padding: 6px 10px; font-size: 13px;" onclick="deleteMenuItem(${item.id})">Del</button>
-            </td>
-        </tr>
-    `).join('');
+    document.getElementById('menuTableBody').innerHTML = menuItems.map(item => `<tr><td style="font-weight: 600; color: var(--text-dark);">${item.name}</td><td>${item.category}</td><td style="color: var(--accent); font-weight: 800;">₹${item.price.toFixed(2)}</td><td>${item.gstRate}%</td><td><strong style="color: ${item.trackStock && item.stockQty <= 5 ? 'var(--danger)' : 'inherit'};">${item.trackStock ? item.stockQty : '∞'}</strong></td><td><button class="btn btn-outline" style="padding: 6px 10px; font-size: 13px;" onclick="editMenuItem(${item.id})">Edit</button><button class="btn btn-danger" style="padding: 6px 10px; font-size: 13px;" onclick="deleteMenuItem(${item.id})">Del</button></td></tr>`).join('');
 }
 
 function openAddMenuItemModal() {
-    editingMenuItemId = null;
-    renderCategoryDropdown();
-    document.getElementById('menuFormTitle').innerText = "Add New Menu Item";
-    document.getElementById('addMenuBtn').innerText = "💾 Save Item";
-    document.getElementById('newItemName').value = '';
-    document.getElementById('newItemPrice').value = '';
-    document.getElementById('newItemGst').value = '0';
-    document.getElementById('newItemTrackStock').checked = false;
-    document.getElementById('newItemStock').style.display = 'none';
-    document.getElementById('newItemStock').value = '';
-    document.getElementById('menuItemModal').style.display = 'flex';
-    setTimeout(() => { document.getElementById('newItemName').focus(); }, 100);
+    editingMenuItemId = null; renderCategoryDropdown();
+    document.getElementById('menuFormTitle').innerText = "Add New Menu Item"; document.getElementById('addMenuBtn').innerText = "💾 Save Item";
+    document.getElementById('newItemName').value = ''; document.getElementById('newItemPrice').value = ''; document.getElementById('newItemGst').value = '0';
+    document.getElementById('newItemTrackStock').checked = false; document.getElementById('newItemStock').style.display = 'none'; document.getElementById('newItemStock').value = '';
+    document.getElementById('menuItemModal').style.display = 'flex'; setTimeout(() => { document.getElementById('newItemName').focus(); }, 100);
 }
 
 function editMenuItem(id) {
     const item = menuItems.find(i => i.id === id);
     if(item) {
         renderCategoryDropdown();
-        document.getElementById('newItemName').value = item.name; 
-        document.getElementById('newItemCategory').value = item.category;
-        document.getElementById('newItemPrice').value = item.price; 
-        document.getElementById('newItemGst').value = item.gstRate || 0;
-        document.getElementById('newItemTrackStock').checked = item.trackStock || false; 
-        document.getElementById('newItemStock').style.display = item.trackStock ? 'block' : 'none'; 
-        document.getElementById('newItemStock').value = item.stockQty || '';
-        
-        editingMenuItemId = id; 
-        document.getElementById('menuFormTitle').innerText = "Edit Menu Item"; 
-        document.getElementById('addMenuBtn').innerText = "💾 Update Item"; 
-        document.getElementById('menuItemModal').style.display = 'flex';
+        document.getElementById('newItemName').value = item.name; document.getElementById('newItemCategory').value = item.category;
+        document.getElementById('newItemPrice').value = item.price; document.getElementById('newItemGst').value = item.gstRate || 0;
+        document.getElementById('newItemTrackStock').checked = item.trackStock || false; document.getElementById('newItemStock').style.display = item.trackStock ? 'block' : 'none'; document.getElementById('newItemStock').value = item.stockQty || '';
+        editingMenuItemId = id; document.getElementById('menuFormTitle').innerText = "Edit Menu Item"; document.getElementById('addMenuBtn').innerText = "💾 Update Item"; document.getElementById('menuItemModal').style.display = 'flex';
     }
 }
 
 function addMenuItem() {
-    const name = document.getElementById('newItemName').value; 
-    const price = parseFloat(document.getElementById('newItemPrice').value); 
-    const category = document.getElementById('newItemCategory').value; 
-    const gstRate = parseFloat(document.getElementById('newItemGst').value) || 0; 
-    const trackStock = document.getElementById('newItemTrackStock').checked; 
-    const stockQty = parseInt(document.getElementById('newItemStock').value) || 0;
+    const name = document.getElementById('newItemName').value; const price = parseFloat(document.getElementById('newItemPrice').value); const category = document.getElementById('newItemCategory').value; 
+    const gstRate = parseFloat(document.getElementById('newItemGst').value) || 0; const trackStock = document.getElementById('newItemTrackStock').checked; const stockQty = parseInt(document.getElementById('newItemStock').value) || 0;
 
     if(name && !isNaN(price)) { 
         if (editingMenuItemId) {
             const index = menuItems.findIndex(i => i.id === editingMenuItemId);
             if(index > -1) { menuItems[index] = { id: editingMenuItemId, name, category, price, gstRate, trackStock, stockQty }; }
-            showToast("✅ Item updated & shifted!");
-        } else { 
-            menuItems.push({ id: Date.now(), name, category, price, gstRate, trackStock, stockQty }); 
-            showToast("✅ Item added!"); 
-        }
-        persistMenu(); 
-        renderMenuUI();
-        document.getElementById('menuItemModal').style.display = 'none';
-    } else { 
-        showToast("⚠️ Name and Price required."); 
-    }
+            showToast("✅ Item updated!");
+        } else { menuItems.push({ id: Date.now(), name, category, price, gstRate, trackStock, stockQty }); showToast("✅ Item added!"); }
+        persistMenu(); renderMenuUI(); document.getElementById('menuItemModal').style.display = 'none';
+    } else { showToast("⚠️ Name and Price required."); }
 }
 
 function deleteMenuItem(id) { if(confirm("Delete this item permanently?")) { menuItems = menuItems.filter(item => item.id !== id); persistMenu(); renderMenuUI(); showToast("Deleted."); } }
 
 
-// ✨ 6. AI SMART MENU ENGINE (With Compression, Gemini 2.5 Flash, Fault Tolerance)
+// ✨ 6. AI SMART MENU ENGINE
 let pendingAiMenu = null;
 
 async function processAIMenu(event) {
-    const file = event.target.files[0];
-    if (!file) return;
+    const file = event.target.files[0]; if (!file) return;
+    const apiKey = shopProfile.openAiKey ? shopProfile.openAiKey.trim() : ""; if (!apiKey) { showToast("⚠️ Please enter your Gemini API Key in Settings first."); return; }
 
-    const apiKey = shopProfile.openAiKey ? shopProfile.openAiKey.trim() : "";
-    if (!apiKey) {
-        showToast("⚠️ Please enter your Gemini API Key in Settings first.");
-        return;
-    }
-
-    const btn = document.getElementById('aiMenuBtn');
-    btn.disabled = true;
-    btn.innerText = "⏳ Compressing & Analyzing...";
-    showToast("🤖 Processing image. Please wait...");
+    const btn = document.getElementById('aiMenuBtn'); btn.disabled = true; btn.innerText = "⏳ Compressing & Analyzing..."; showToast("🤖 Processing image. Please wait...");
 
     try {
-        let base64Data = "";
-        let mimeType = 'image/jpeg';
+        let base64Data = ""; let mimeType = 'image/jpeg';
 
         if (file.type === "application/pdf") {
             if (!window.pdfjsLib) throw new Error("PDF reader library failed to load.");
@@ -468,15 +285,9 @@ async function processAIMenu(event) {
             base64Data = await new Promise((resolve, reject) => {
                 fileReader.onload = async function() {
                     try {
-                        const typedarray = new Uint8Array(this.result);
-                        const pdf = await pdfjsLib.getDocument(typedarray).promise;
-                        const page = await pdf.getPage(1); 
-                        const viewport = page.getViewport({scale: 1.5});
-                        const canvas = document.createElement('canvas');
-                        const ctx = canvas.getContext('2d');
-                        canvas.height = viewport.height;
-                        canvas.width = viewport.width;
-                        await page.render({canvasContext: ctx, viewport: viewport}).promise;
+                        const typedarray = new Uint8Array(this.result); const pdf = await pdfjsLib.getDocument(typedarray).promise; const page = await pdf.getPage(1); 
+                        const viewport = page.getViewport({scale: 1.5}); const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
+                        canvas.height = viewport.height; canvas.width = viewport.width; await page.render({canvasContext: ctx, viewport: viewport}).promise;
                         resolve(canvas.toDataURL('image/jpeg', 0.8));
                     } catch(e) { reject(new Error("PDF parsing failed.")); }
                 };
@@ -488,57 +299,34 @@ async function processAIMenu(event) {
                 reader.onload = (e) => {
                     const img = new Image();
                     img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        const MAX_DIM = 1200; 
-                        let w = img.width, h = img.height;
-                        
-                        if (w > h && w > MAX_DIM) { h *= MAX_DIM / w; w = MAX_DIM; }
-                        else if (h > MAX_DIM) { w *= MAX_DIM / h; h = MAX_DIM; }
-                        
-                        canvas.width = w; canvas.height = h;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, w, h);
+                        const canvas = document.createElement('canvas'); const MAX_DIM = 1200; let w = img.width, h = img.height;
+                        if (w > h && w > MAX_DIM) { h *= MAX_DIM / w; w = MAX_DIM; } else if (h > MAX_DIM) { w *= MAX_DIM / h; h = MAX_DIM; }
+                        canvas.width = w; canvas.height = h; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, w, h);
                         resolve(canvas.toDataURL('image/jpeg', 0.7));
                     };
-                    img.onerror = () => reject(new Error("Image load failed."));
-                    img.src = e.target.result;
+                    img.onerror = () => reject(new Error("Image load failed.")); img.src = e.target.result;
                 };
-                reader.onerror = () => reject(new Error("File reading failed."));
-                reader.readAsDataURL(file);
+                reader.onerror = () => reject(new Error("File reading failed.")); reader.readAsDataURL(file);
             });
         }
 
         const base64Clean = base64Data.split(',')[1];
-
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                contents: [{
-                    parts: [
-                        { text: `Extract Categories, Items, Prices, and GST percentages (output 0 if missing). Output strictly as a JSON object: { "categories": [ { "name": "CategoryName", "items": [ { "name": "ItemName", "price": 120, "gst": 0 } ] } ] }` },
-                        { inline_data: { mime_type: mimeType, data: base64Clean } }
-                    ]
-                }],
+                contents: [{ parts: [ { text: `Extract Categories, Items, Prices, and GST percentages (output 0 if missing). Output strictly as a JSON object: { "categories": [ { "name": "CategoryName", "items": [ { "name": "ItemName", "price": 120, "gst": 0 } ] } ] }` }, { inline_data: { mime_type: mimeType, data: base64Clean } } ] }],
                 generationConfig: { response_mime_type: "application/json" }
             })
         });
 
         const data = await response.json();
-
         if (data.error) throw new Error("API Error: " + data.error.message);
         if (!data.candidates || data.candidates.length === 0) throw new Error("AI returned empty data.");
 
         let rawResponse = data.candidates[0].content.parts[0].text.trim();
         rawResponse = rawResponse.replace(/^```(json)?|```$/gi, '').trim();
 
-        try {
-            pendingAiMenu = JSON.parse(rawResponse);
-        } catch (parseError) {
-            console.error("Raw AI Output:", rawResponse);
-            throw new Error("AI output was invalid JSON.");
-        }
-
+        try { pendingAiMenu = JSON.parse(rawResponse); } catch (parseError) { console.error("Raw AI Output:", rawResponse); throw new Error("AI output was invalid JSON."); }
         if (!pendingAiMenu || !pendingAiMenu.categories || pendingAiMenu.categories.length === 0) throw new Error("No menu items detected.");
 
         let treeHtml = "";
@@ -550,41 +338,24 @@ async function processAIMenu(event) {
             });
         });
 
-        document.getElementById('aiPreviewTree').innerHTML = treeHtml;
-        document.getElementById('aiPreviewModal').style.display = 'flex';
+        document.getElementById('aiPreviewTree').innerHTML = treeHtml; document.getElementById('aiPreviewModal').style.display = 'flex';
 
-    } catch (error) {
-        console.error(error);
-        showToast("❌ " + error.message);
-    } finally {
-        btn.disabled = false;
-        btn.innerText = "📁 Upload File";
-        document.getElementById('aiMenuUploader').value = ''; 
-    }
+    } catch (error) { console.error(error); showToast("❌ " + error.message); } finally { btn.disabled = false; btn.innerText = "📁 Upload File"; document.getElementById('aiMenuUploader').value = ''; }
 }
 
 function confirmAiImport() {
     const btn = document.querySelector('#aiPreviewModal .btn-success');
     
     try {
-        btn.disabled = true;
-        btn.innerText = "⏳ Importing Data...";
-
+        btn.disabled = true; btn.innerText = "⏳ Importing Data...";
         if (!pendingAiMenu || !pendingAiMenu.categories) throw new Error("No data found.");
 
-        let itemsAdded = 0;
-        let newCategoriesAdded = 0;
+        let itemsAdded = 0; let newCategoriesAdded = 0;
 
         pendingAiMenu.categories.forEach((cat, catIndex) => {
             let catName = String(cat.name || cat.category || "Uncategorized").trim();
             let existingCat = menuCategories.find(c => c.toLowerCase() === catName.toLowerCase());
-            
-            if (!existingCat) { 
-                menuCategories.push(catName); 
-                newCategoriesAdded++;
-            } else {
-                catName = existingCat; 
-            }
+            if (!existingCat) { menuCategories.push(catName); newCategoriesAdded++; } else { catName = existingCat; }
             
             if(cat.items && Array.isArray(cat.items)) {
                 cat.items.forEach((item, itemIndex) => {
@@ -593,52 +364,26 @@ function confirmAiImport() {
                     let rawGst = item.gst !== undefined ? item.gst : (item.GST !== undefined ? item.GST : 0);
 
                     if (rawName) {
-                        menuItems.push({
-                            id: Date.now() + (catIndex * 100) + itemIndex + Math.floor(Math.random() * 1000),
-                            name: String(rawName).trim(),
-                            category: catName,
-                            price: parseFloat(rawPrice) || 0,
-                            gstRate: parseFloat(rawGst) || 0,
-                            trackStock: false,
-                            stockQty: 0
-                        });
+                        menuItems.push({ id: Date.now() + (catIndex * 100) + itemIndex + Math.floor(Math.random() * 1000), name: String(rawName).trim(), category: catName, price: parseFloat(rawPrice) || 0, gstRate: parseFloat(rawGst) || 0, trackStock: false, stockQty: 0 });
                         itemsAdded++;
                     }
                 });
             }
         });
 
-        persistCategories();
-        persistMenu();
-        renderCategoryDropdown(); renderCategoryFilters(); renderCategoryListUI(); renderMenuUI();
-        document.getElementById('aiPreviewModal').style.display = 'none';
-        pendingAiMenu = null;
+        persistCategories(); persistMenu(); renderCategoryDropdown(); renderCategoryFilters(); renderCategoryListUI(); renderMenuUI();
+        document.getElementById('aiPreviewModal').style.display = 'none'; pendingAiMenu = null;
         showToast(`✅ Imported ${itemsAdded} items & Auto-Created ${newCategoriesAdded} categories!`);
-
-    } catch (error) {
-        console.error(error);
-        showToast("❌ Import failed: " + error.message);
-    } finally {
-        if (btn) { btn.disabled = false; btn.innerText = "✅ Confirm & Import"; }
-    }
+    } catch (error) { console.error(error); showToast("❌ Import failed: " + error.message); } finally { if (btn) { btn.disabled = false; btn.innerText = "✅ Confirm & Import"; } }
 }
 
 // ✨ 7. EXPENSES & REPORTS
 function addExpense() {
-    const name = document.getElementById('expenseName').value; 
-    const cost = parseFloat(document.getElementById('expenseCost').value); 
-    
+    const name = document.getElementById('expenseName').value; const cost = parseFloat(document.getElementById('expenseCost').value); 
     if(name && cost) { 
-        if (editingExpenseId) {
-            const index = dailyExpenses.findIndex(e => e.id === editingExpenseId);
-            if(index > -1) { dailyExpenses[index].name = name; dailyExpenses[index].cost = cost; }
-            editingExpenseId = null; document.getElementById('addExpenseBtn').innerText = "- Record"; showToast("Expense updated.");
-        } else {
-            const newExpense = { id: Date.now(), date: new Date().toLocaleDateString(), filterDate: getLocalISODate(), time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), name: name, cost: cost };
-            dailyExpenses.unshift(newExpense); pushToGoogleSheetsQueue('addExpense', newExpense); showToast("Expense recorded."); 
-        }
-        document.getElementById('expenseName').value = ''; document.getElementById('expenseCost').value = ''; 
-        persistExpensesFirebase(); renderExpensesUI(); 
+        if (editingExpenseId) { const index = dailyExpenses.findIndex(e => e.id === editingExpenseId); if(index > -1) { dailyExpenses[index].name = name; dailyExpenses[index].cost = cost; } editingExpenseId = null; document.getElementById('addExpenseBtn').innerText = "- Record"; showToast("Expense updated."); } 
+        else { const newExpense = { id: Date.now(), date: new Date().toLocaleDateString(), filterDate: getLocalISODate(), time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), name: name, cost: cost }; dailyExpenses.unshift(newExpense); pushToGoogleSheetsQueue('addExpense', newExpense); showToast("Expense recorded."); }
+        document.getElementById('expenseName').value = ''; document.getElementById('expenseCost').value = ''; persistExpensesFirebase(); renderExpensesUI(); 
     } else { showToast("Please enter Item Name and Cost."); }
 }
 
@@ -646,10 +391,7 @@ function editExpense(id) { const exp = dailyExpenses.find(e => e.id === id); if(
 function deleteExpense(id) { if(confirm("Delete this expense?")) { dailyExpenses = dailyExpenses.filter(e => e.id !== id); persistExpensesFirebase(); renderExpensesUI(); showToast("Expense deleted."); } }
 
 function renderExpensesUI() { 
-    document.getElementById('expensesTableBody').innerHTML = dailyExpenses.map((exp, index) => {
-        if(!exp.id) exp.id = Date.now() + index; 
-        return `<tr><td style="color: var(--text-muted);">${exp.time}</td><td style="font-weight: 600; color: var(--text-dark);">${exp.name}</td><td style="color: var(--danger); font-weight: 800;">-₹${exp.cost.toFixed(2)}</td><td><button class="btn btn-outline" style="padding: 6px 10px; font-size: 12px; margin-right: 5px;" onclick="editExpense(${exp.id})">Edit</button><button class="btn btn-danger" style="padding: 6px 10px; font-size: 12px;" onclick="deleteExpense(${exp.id})">Del</button></td></tr>`;
-    }).join(''); 
+    document.getElementById('expensesTableBody').innerHTML = dailyExpenses.map((exp, index) => { if(!exp.id) exp.id = Date.now() + index; return `<tr><td style="color: var(--text-muted);">${exp.time}</td><td style="font-weight: 600; color: var(--text-dark);">${exp.name}</td><td style="color: var(--danger); font-weight: 800;">-₹${exp.cost.toFixed(2)}</td><td><button class="btn btn-outline" style="padding: 6px 10px; font-size: 12px; margin-right: 5px;" onclick="editExpense(${exp.id})">Edit</button><button class="btn btn-danger" style="padding: 6px 10px; font-size: 12px;" onclick="deleteExpense(${exp.id})">Del</button></td></tr>`; }).join(''); 
 }
 
 function renderStatements() {
@@ -675,9 +417,7 @@ function renderStatements() {
 function openEditOrderModal(id) {
     const order = orderHistory.find(o => o.id === id); if(!order) return;
     document.getElementById('editOrderId').value = id; document.getElementById('editBillNoDisplay').innerText = order.billNo || 'N/A';
-    document.getElementById('editOrderType').value = order.orderType || (order.table === 'Takeaway' ? 'Takeaway' : 'Dine-In');
-    selectPayment(order.paymentMode || 'Cash', 'edit'); document.getElementById('editCustomerName').value = order.customer || ''; document.getElementById('editBillerName').value = order.biller || '';
-    document.getElementById('editOrderModal').style.display = 'flex';
+    document.getElementById('editOrderType').value = order.orderType || (order.table === 'Takeaway' ? 'Takeaway' : 'Dine-In'); selectPayment(order.paymentMode || 'Cash', 'edit'); document.getElementById('editCustomerName').value = order.customer || ''; document.getElementById('editBillerName').value = order.biller || ''; document.getElementById('editOrderModal').style.display = 'flex';
 }
 
 function saveEditedOrder() {
@@ -685,8 +425,7 @@ function saveEditedOrder() {
     if(order) {
         order.orderType = document.getElementById('editOrderType').value; order.paymentMode = document.getElementById('editSelectedPaymentMode').value;
         order.customer = document.getElementById('editCustomerName').value.trim(); order.biller = document.getElementById('editBillerName').value.trim();
-        if(order.orderType === 'Takeaway') order.table = 'Takeaway';
-        persistHistoryFirebase(); renderStatements(); showToast("Bill updated."); document.getElementById('editOrderModal').style.display = 'none';
+        if(order.orderType === 'Takeaway') order.table = 'Takeaway'; persistHistoryFirebase(); renderStatements(); showToast("Bill updated."); document.getElementById('editOrderModal').style.display = 'none';
     }
 }
 
@@ -737,6 +476,7 @@ function modifyQty(itemId, delta) {
     }
 }
 
+// ✨ UPDATE CART UI (FEEDS THE FLOATING MOBILE BUTTON) ✨
 function updateCartUI() {
     const cartDiv = document.getElementById('cartUI'); cartDiv.innerHTML = '';
     let total = 0; let totalGstAmt = 0; let currentCart = tablesInfo[activeTable].items || [];
@@ -744,12 +484,8 @@ function updateCartUI() {
         cartDiv.innerHTML = `<div style="text-align: center; color: var(--text-muted); margin-top: 40px; font-weight: 600;">Select items from the menu to start an order.</div>`;
     } else {
         currentCart.forEach((item) => {
-            let itemTotal = item.price * item.qty; total += itemTotal; 
-            let gst = item.gstRate || 0;
-            if (gst > 0) {
-                let basePrice = itemTotal / (1 + (gst / 100)); 
-                totalGstAmt += (itemTotal - basePrice);
-            }
+            let itemTotal = item.price * item.qty; total += itemTotal; let gst = item.gstRate || 0;
+            if (gst > 0) { let basePrice = itemTotal / (1 + (gst / 100)); totalGstAmt += (itemTotal - basePrice); }
             cartDiv.innerHTML += `<div class="cart-item"><div class="cart-item-top"><span class="cart-item-name">${item.name}</span><span class="cart-item-price">₹${itemTotal.toFixed(2)}</span></div><div class="cart-item-bottom"><span class="cart-item-math">₹${item.price.toFixed(2)} each</span><div class="qty-pill"><button onclick="modifyQty(${item.id}, -1)">-</button><span>${item.qty}</span><button onclick="modifyQty(${item.id}, 1)">+</button></div></div></div>`;
         });
     }
@@ -757,10 +493,28 @@ function updateCartUI() {
     document.getElementById('totalUI').innerText = total.toFixed(2); 
     document.getElementById('gstBreakdownUI').innerText = totalGstAmt > 0 ? `Includes ₹${totalGstAmt.toFixed(2)} GST` : "No GST Applied";
     
+    // Feed data to the mobile floating button
+    let totalItems = currentCart.reduce((sum, item) => sum + item.qty, 0);
+    const fc = document.getElementById('floatingCart');
     const mobileTotal = document.getElementById('mobileTotalUI');
-    if (mobileTotal) mobileTotal.innerText = " • ₹" + total.toFixed(2);
+    
+    if (fc) {
+        if (totalItems > 0) {
+            fc.style.display = 'flex';
+            document.getElementById('fc-count').innerText = `${totalItems} items`;
+            document.getElementById('fc-total').innerText = total.toFixed(2);
+            if(mobileTotal) mobileTotal.innerText = " • ₹" + total.toFixed(2);
+        } else {
+            fc.style.display = 'none';
+        }
+    }
     
     cartDiv.scrollTop = cartDiv.scrollHeight;
+}
+
+// ✨ MOBILE CART DRAWER TOGGLE ✨
+function toggleCartDrawer() {
+    document.getElementById('cartDrawer').classList.toggle('open');
 }
 
 function markServed() { let tInfo = tablesInfo[activeTable]; if(tInfo.items.length === 0) return showToast("Table empty!"); tInfo.status = 'served'; tInfo.lastReminder = Date.now(); persistTables(); renderTables(); showToast(`Table ${activeTable} served. Timer started.`); }
@@ -786,40 +540,33 @@ async function confirmCheckout() {
     if(!tInfo || tInfo.items.length === 0) return showToast(`Table ${activeTable} is empty!`);
     
     const payBtn = document.querySelector('#checkoutModal .btn-success');
-    payBtn.disabled = true;
-    payBtn.innerText = printCharacteristic ? "⏳ Printing Receipt..." : "📄 Generating PDF...";
-
+    payBtn.disabled = true; payBtn.innerText = printCharacteristic ? "⏳ Printing Receipt..." : "📄 Generating PDF...";
     document.getElementById('checkoutModal').style.display = 'none';
     
     try {
-        let total = 0;
-        const itemNames = tInfo.items.map(i => `${i.name} (x${i.qty})`).join(', ');
+        let total = 0; const itemNames = tInfo.items.map(i => `${i.name} (x${i.qty})`).join(', ');
         tInfo.items.forEach(item => { total += (item.price * item.qty); });
 
         const oType = document.getElementById('checkoutOrderType').value; const pMode = document.getElementById('selectedPaymentMode').value;
         const cName = document.getElementById('checkoutCustomerName').value.trim(); const bName = document.getElementById('checkoutBillerName').value.trim();
-        const fullDateStr = new Date().toLocaleString(); const safeFilterDate = getLocalISODate();
-        const finalTableStr = oType === 'Takeaway' ? 'Takeaway' : `Table ${activeTable}`;
+        const fullDateStr = new Date().toLocaleString(); const safeFilterDate = getLocalISODate(); const finalTableStr = oType === 'Takeaway' ? 'Takeaway' : `Table ${activeTable}`;
 
         const currentStartNo = shopProfile.startInvoiceNo || 1001; const highestExistingBill = orderHistory.length > 0 ? Math.max(...orderHistory.map(o => o.billNo || 0)) : 0;
         const generatedBillNo = Math.max(currentStartNo, highestExistingBill + 1);
 
         const newOrder = { id: Date.now(), billNo: generatedBillNo, date: fullDateStr, filterDate: safeFilterDate, table: finalTableStr, orderType: oType, paymentMode: pMode, customer: cName, biller: bName, items: itemNames, rawItems: JSON.parse(JSON.stringify(tInfo.items)), amount: total };
-        
         await sendEscPosToPrinter(newOrder);
         
         tInfo.items.forEach(cartItem => { const mItem = menuItems.find(m => m.id === cartItem.id); if (mItem && mItem.trackStock) { mItem.stockQty -= cartItem.qty; if (mItem.stockQty < 0) mItem.stockQty = 0; } });
         persistMenu(); orderHistory.unshift(newOrder); persistHistoryFirebase(); 
         tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); 
         pushToGoogleSheetsQueue('addOrder', newOrder); renderTables(); updateCartUI();
+        
+        // Auto-close mobile drawer on checkout
+        document.getElementById('cartDrawer').classList.remove('open');
         showToast("✅ Payment recorded & Table cleared.");
-    } catch (e) {
-        console.error(e);
-        showToast("❌ Error processing checkout.");
-    } finally {
-        payBtn.disabled = false;
-        payBtn.innerText = "🖨️ Pay & Print";
-    }
+    } catch (e) { console.error(e); showToast("❌ Error processing checkout."); } 
+    finally { payBtn.disabled = false; payBtn.innerText = "🖨️ Pay & Print"; }
 }
 
 function clearTable() { if(confirm("Clear this entire order?")) { tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); renderTables(); updateCartUI(); } }
@@ -827,31 +574,15 @@ function showToast(message) { const container = document.getElementById('toast-c
 
 // ✨ 10. KITCHEN ORDER TICKET (KOT) ENGINE
 function sendToKitchen() { 
-    let tInfo = tablesInfo[activeTable]; 
-    if(tInfo.items.length === 0) return showToast("Nothing to send!"); 
-    tInfo.status = 'saved'; persistTables(); renderTables(); 
-    
-    document.getElementById('kotTableNoDisplay').innerText = activeTable;
-    document.getElementById('kotModal').style.display = 'flex';
+    let tInfo = tablesInfo[activeTable]; if(tInfo.items.length === 0) return showToast("Nothing to send!"); 
+    tInfo.status = 'saved'; persistTables(); renderTables(); document.getElementById('kotTableNoDisplay').innerText = activeTable; document.getElementById('kotModal').style.display = 'flex';
 }
 
 async function printKitchenTicket() {
-    const btn = document.querySelector('#kotModal .btn-warning');
-    btn.disabled = true;
-    btn.innerText = printCharacteristic ? "⏳ Printing KOT..." : "📄 Generating PDF KOT...";
-
+    const btn = document.querySelector('#kotModal .btn-warning'); btn.disabled = true; btn.innerText = printCharacteristic ? "⏳ Printing KOT..." : "📄 Generating PDF KOT...";
     let tInfo = tablesInfo[activeTable];
-    
-    try {
-        await sendKotToPrinter(activeTable, tInfo.items);
-        document.getElementById('kotModal').style.display = 'none';
-        showToast(`👨‍🍳 Table ${activeTable} KOT Processed.`);
-    } catch(e) {
-        console.error(e); showToast("❌ KOT Error.");
-    } finally {
-        btn.disabled = false;
-        btn.innerText = "🖨️ Print KOT";
-    }
+    try { await sendKotToPrinter(activeTable, tInfo.items); document.getElementById('kotModal').style.display = 'none'; showToast(`👨‍🍳 Table ${activeTable} KOT Processed.`); } 
+    catch(e) { console.error(e); showToast("❌ KOT Error."); } finally { btn.disabled = false; btn.innerText = "🖨️ Print KOT"; }
 }
 
 // ✨ 11. ADVANCED ESC/POS BLUETOOTH & HTML ENGINE
@@ -958,10 +689,7 @@ async function sendEscPosToPrinter(order) {
         document.getElementById('printTotal').innerText = `₹${order.amount.toFixed(2)}`;
         
         return new Promise(resolve => {
-            setTimeout(() => {
-                window.print();
-                setTimeout(() => { document.getElementById('print-receipt').style.display = 'none'; resolve(); }, 1500); 
-            }, 300); 
+            setTimeout(() => { window.print(); setTimeout(() => { document.getElementById('print-receipt').style.display = 'none'; resolve(); }, 1500); }, 300); 
         });
     }
 
@@ -1026,158 +754,60 @@ async function sendEscPosToPrinter(order) {
     receiptText += ALIGN_CENTER + 'Thank You! Visit Again\n';
     receiptText += FEED_AND_CUT;
 
-    const encoder = new TextEncoder();
-    const textData = encoder.encode(receiptText);
-    let payload = textData;
-
+    const encoder = new TextEncoder(); const textData = encoder.encode(receiptText); let payload = textData;
     if (shopProfile.logo) {
         const logoBytes = await getLogoBytes(shopProfile.logo);
         if (logoBytes) {
-            const alignCenterCmd = new Uint8Array([0x1B, 0x61, 0x01]); 
-            const spacingCmd = new Uint8Array([0x0A]); 
+            const alignCenterCmd = new Uint8Array([0x1B, 0x61, 0x01]); const spacingCmd = new Uint8Array([0x0A]); 
             payload = new Uint8Array(alignCenterCmd.length + logoBytes.length + spacingCmd.length + textData.length);
-            let offset = 0;
-            payload.set(alignCenterCmd, offset); offset += alignCenterCmd.length;
-            payload.set(logoBytes, offset); offset += logoBytes.length;
-            payload.set(spacingCmd, offset); offset += spacingCmd.length;
-            payload.set(textData, offset);
+            let offset = 0; payload.set(alignCenterCmd, offset); offset += alignCenterCmd.length; payload.set(logoBytes, offset); offset += logoBytes.length; payload.set(spacingCmd, offset); offset += spacingCmd.length; payload.set(textData, offset);
         }
     }
 
     const CHUNK_SIZE = 100; 
-    try {
-        for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
-            const chunk = payload.slice(i, i + CHUNK_SIZE);
-            await printCharacteristic.writeValue(chunk);
-            await new Promise(resolve => setTimeout(resolve, 20)); 
-        }
-    } catch(e) { console.error(e); showToast("❌ Print Failed. Printer might be off."); }
+    try { for (let i = 0; i < payload.length; i += CHUNK_SIZE) { const chunk = payload.slice(i, i + CHUNK_SIZE); await printCharacteristic.writeValue(chunk); await new Promise(resolve => setTimeout(resolve, 20)); } } catch(e) { console.error(e); showToast("❌ Print Failed. Printer might be off."); }
 }
 
 async function sendKotToPrinter(tableNo, items) {
     if (!printCharacteristic) {
         showToast("⚠️ No BLE Printer found. Opening PDF Preview..."); 
-        document.getElementById('print-receipt').style.display = 'none';
-        document.getElementById('print-kot').style.display = 'block';
-
-        document.getElementById('printKotTableNo').innerText = tableNo;
-        document.getElementById('printKotTime').innerText = new Date().toLocaleTimeString();
-        let itemsHtml = '';
-        items.forEach(item => {
-            itemsHtml += `<div style="display:flex; justify-content:space-between; margin-bottom: 8px; border-bottom: 1px dashed #ccc; padding-bottom: 4px;"><span>${item.name}</span><span style="font-size:18px;">x${item.qty}</span></div>`;
-        });
+        document.getElementById('print-receipt').style.display = 'none'; document.getElementById('print-kot').style.display = 'block'; document.getElementById('printKotTableNo').innerText = tableNo; document.getElementById('printKotTime').innerText = new Date().toLocaleTimeString();
+        let itemsHtml = ''; items.forEach(item => { itemsHtml += `<div style="display:flex; justify-content:space-between; margin-bottom: 8px; border-bottom: 1px dashed #ccc; padding-bottom: 4px;"><span>${item.name}</span><span style="font-size:18px;">x${item.qty}</span></div>`; });
         document.getElementById('printKotItems').innerHTML = itemsHtml;
-
-        return new Promise(resolve => {
-            setTimeout(() => {
-                window.print();
-                setTimeout(() => { document.getElementById('print-kot').style.display = 'none'; resolve(); }, 1500); 
-            }, 300);
-        });
+        return new Promise(resolve => { setTimeout(() => { window.print(); setTimeout(() => { document.getElementById('print-kot').style.display = 'none'; resolve(); }, 1500); }, 300); });
     }
 
-    const ESC = '\x1B'; const GS = '\x1D'; const INIT = ESC + '@'; 
-    const ALIGN_CENTER = ESC + 'a\x01'; const ALIGN_LEFT = ESC + 'a\x00'; 
-    const BOLD_ON = ESC + 'E\x01'; const BOLD_OFF = ESC + 'E\x00'; 
-    const DOUBLE_SIZE = GS + '!\x11'; const NORMAL_SIZE = GS + '!\x00'; 
-    const FEED_AND_CUT = '\x0A\x0A\x0A\x0A' + ESC + 'm'; 
+    const ESC = '\x1B'; const GS = '\x1D'; const INIT = ESC + '@'; const ALIGN_CENTER = ESC + 'a\x01'; const ALIGN_LEFT = ESC + 'a\x00'; const BOLD_ON = ESC + 'E\x01'; const BOLD_OFF = ESC + 'E\x00'; const DOUBLE_SIZE = GS + '!\x11'; const NORMAL_SIZE = GS + '!\x00'; const FEED_AND_CUT = '\x0A\x0A\x0A\x0A' + ESC + 'm'; 
 
-    let kotText = INIT;
-    kotText += ALIGN_CENTER + BOLD_ON + "KITCHEN TICKET\n" + BOLD_OFF;
-    kotText += "--------------------------------\n";
-    kotText += DOUBLE_SIZE + BOLD_ON + `TABLE: ${tableNo}\n` + NORMAL_SIZE + BOLD_OFF;
-    kotText += `Time: ${new Date().toLocaleTimeString()}\n`;
-    kotText += "--------------------------------\n";
-    kotText += ALIGN_LEFT;
-
-    items.forEach(item => {
-        kotText += DOUBLE_SIZE + `${item.qty}x ${item.name}\n` + NORMAL_SIZE;
-        kotText += "--------------------------------\n";
-    });
-
+    let kotText = INIT; kotText += ALIGN_CENTER + BOLD_ON + "KITCHEN TICKET\n" + BOLD_OFF; kotText += "--------------------------------\n"; kotText += DOUBLE_SIZE + BOLD_ON + `TABLE: ${tableNo}\n` + NORMAL_SIZE + BOLD_OFF; kotText += `Time: ${new Date().toLocaleTimeString()}\n`; kotText += "--------------------------------\n"; kotText += ALIGN_LEFT;
+    items.forEach(item => { kotText += DOUBLE_SIZE + `${item.qty}x ${item.name}\n` + NORMAL_SIZE; kotText += "--------------------------------\n"; });
     kotText += ALIGN_CENTER + "*** END OF KOT ***\n" + FEED_AND_CUT;
-
-    const encoder = new TextEncoder();
-    const payload = encoder.encode(kotText);
-    const CHUNK_SIZE = 100; 
-    try {
-        for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
-            const chunk = payload.slice(i, i + CHUNK_SIZE);
-            await printCharacteristic.writeValue(chunk);
-            await new Promise(resolve => setTimeout(resolve, 20)); 
-        }
-    } catch(e) { console.error(e); showToast("❌ KOT Print Failed."); }
+    const encoder = new TextEncoder(); const payload = encoder.encode(kotText); const CHUNK_SIZE = 100; 
+    try { for (let i = 0; i < payload.length; i += CHUNK_SIZE) { const chunk = payload.slice(i, i + CHUNK_SIZE); await printCharacteristic.writeValue(chunk); await new Promise(resolve => setTimeout(resolve, 20)); } } catch(e) { console.error(e); showToast("❌ KOT Print Failed."); }
 }
 
 function reprintReceipt(orderId) { const order = orderHistory.find(o => o.id === orderId); if (!order || !order.rawItems) return showToast("Cannot print old order details."); sendEscPosToPrinter(order); }
 function testThermalPrinter() { const dummyOrder = { billNo: 'TEST-999', date: new Date().toLocaleString(), orderType: 'Dine-In', paymentMode: 'Cash', amount: 270, rawItems: [ {name: "Standard Espresso", qty: 1, price: 80, gstRate: 5}, {name: "Water Bottle", qty: 2, price: 20, gstRate: 0} ] }; sendEscPosToPrinter(dummyOrder); }
 
-// ✨ PWA SERVICE WORKER & SMART INSTALL ✨
-if ('serviceWorker' in navigator) { 
-    window.addEventListener('load', () => { 
-        navigator.serviceWorker.register('./service-worker.js')
-            .then(reg => console.log('SW Registered!'))
-            .catch(err => console.log('SW Failed:', err)); 
-    }); 
-}
-
-let deferredPrompt; 
-window.addEventListener('beforeinstallprompt', (e) => { 
-    e.preventDefault(); 
-    deferredPrompt = e; 
-});
-
-function installApp() { 
-    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
-        return showToast("✅ You are already using the installed PWA.");
-    }
-    if (deferredPrompt) { 
-        deferredPrompt.prompt(); 
-        deferredPrompt.userChoice.then((choiceResult) => { deferredPrompt = null; }); 
-    } 
-    else if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) { 
-        showToast("🍎 iOS: Tap the 'Share' icon at the bottom, then 'Add to Home Screen'."); 
-    } 
-    else { 
-        showToast("⚠️ Cannot install automatically. Please use your browser's menu (⋮) -> 'Install App'."); 
-    } 
-}
-
-// ✨ 12. GLOBAL ENTER KEY ENGINE ✨
 document.addEventListener('keydown', function(event) {
     if (event.key === 'Enter') {
         const activeId = document.activeElement.id;
         if (!activeId) return;
-
         if (activeId === 'activationKeyInput') { activateSoftware(); document.activeElement.blur(); }
         if (activeId === 'adminPinInput') { loginAsAdmin(); document.activeElement.blur(); }
         if (activeId === 'newCategoryName') { addCategory(); }
-        if (['newItemName', 'newItemPrice', 'newItemGst', 'newItemStock'].includes(activeId)) {
-            addMenuItem();
-            document.getElementById('newItemName').focus(); 
-        }
-        if (['expenseName', 'expenseCost'].includes(activeId)) {
-            addExpense();
-            document.getElementById('expenseName').focus(); 
-        }
-        if (['checkoutCustomerName', 'checkoutBillerName'].includes(activeId)) {
-            if (document.getElementById('checkoutModal').style.display !== 'none') confirmCheckout();
-        }
-        if (['editCustomerName', 'editBillerName'].includes(activeId)) {
-            if (document.getElementById('editOrderModal').style.display !== 'none') saveEditedOrder();
-        }
+        if (['newItemName', 'newItemPrice', 'newItemGst', 'newItemStock'].includes(activeId)) { addMenuItem(); document.getElementById('newItemName').focus(); }
+        if (['expenseName', 'expenseCost'].includes(activeId)) { addExpense(); document.getElementById('expenseName').focus(); }
+        if (['checkoutCustomerName', 'checkoutBillerName'].includes(activeId)) { if (document.getElementById('checkoutModal').style.display !== 'none') confirmCheckout(); }
+        if (['editCustomerName', 'editBillerName'].includes(activeId)) { if (document.getElementById('editOrderModal').style.display !== 'none') saveEditedOrder(); }
         if (activeId === 'menuSearchInput') { document.activeElement.blur(); }
-        if (['shopNameInput', 'shopAddressInput', 'fssaiInput', 'gstinInput', 'tableCountInput', 'startInvoiceInput', 'adminPinSetup', 'openAiKeyInput'].includes(activeId)) {
-            saveSettings();
-            document.activeElement.blur();
-        }
+        if (['shopNameInput', 'shopAddressInput', 'fssaiInput', 'gstinInput', 'tableCountInput', 'startInvoiceInput', 'adminPinSetup', 'openAiKeyInput'].includes(activeId)) { saveSettings(); document.activeElement.blur(); }
     }
 });
 
-// ✨ GLOBALLY EXPOSE FUNCTIONS ✨
 window.activateSoftware = activateSoftware; window.loginAsStaff = loginAsStaff; window.loginAsAdmin = loginAsAdmin;
 window.selectPayment = selectPayment; window.confirmCheckout = confirmCheckout; window.saveEditedOrder = saveEditedOrder;
-window.switchTab = switchTab; window.installApp = installApp; window.lockSystem = lockSystem;
+window.switchTab = switchTab; window.lockSystem = lockSystem;
 window.renderMenuUI = renderMenuUI; window.bookTable = bookTable; window.sendToKitchen = sendToKitchen;
 window.markServed = markServed; window.openCheckoutModal = openCheckoutModal; window.clearTable = clearTable;
 window.addMenuItem = addMenuItem; window.addExpense = addExpense; window.editExpense = editExpense; 
@@ -1188,4 +818,4 @@ window.editMenuItem = editMenuItem; window.deleteMenuItem = deleteMenuItem; wind
 window.reprintReceipt = reprintReceipt; window.selectTable = selectTable; window.modifyQty = modifyQty;
 window.connectBluetoothPrinter = connectBluetoothPrinter; window.printKitchenTicket = printKitchenTicket;
 window.addCategory = addCategory; window.deleteCategory = deleteCategory; window.processAIMenu = processAIMenu; window.confirmAiImport = confirmAiImport;
-window.openAddMenuItemModal = openAddMenuItemModal;
+window.openAddMenuItemModal = openAddMenuItemModal; window.toggleCartDrawer = toggleCartDrawer;
