@@ -88,19 +88,22 @@ input:focus, select:focus { outline: none; }
 .table-legend i { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
 
 .table-grid { display: flex; overflow-x: auto; gap: 12px; padding-bottom: 12px; scrollbar-width: none; }
-/* ✨ THE GOLDEN BORDER & STATUS DOT ✨ */
+
+/* ✨ THE EXACT GOLDEN BORDER & TABLE STATUS DOTS ✨ */
 .table-btn { position: relative; flex: 0 0 auto; width: 85px; height: 85px; background: var(--bg-surface); border: none; border-radius: 16px; cursor: pointer; text-align: center; font-weight: 800; font-size: 18px; transition: 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(75, 46, 43, 0.05); color: var(--text-dark); }
 .table-status-dot { position: absolute; top: 8px; left: 8px; width: 10px; height: 10px; border-radius: 50%; display: none; }
 .table-btn.occupied .table-status-dot { display: block; background: var(--warning); }
-.table-btn.saved .table-status-dot { display: block; background: #9E9E9E; }
-.table-btn.served .table-status-dot { display: block; background: var(--accent); }
+.table-btn.saved .table-status-dot { display: block; background: #75808A; }
+.table-btn.served .table-status-dot { display: block; background: var(--warning); } /* Or Rust, based on preference */
 .table-btn.alert .table-status-dot { display: block; background: var(--danger); box-shadow: 0 0 6px var(--danger); }
+
 .table-btn span.amt { font-size: 11px; font-weight: 700; margin-top: 4px; opacity: 0.8; }
 .table-btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
 .table-btn.selected { 
     background: var(--primary); 
     color: white; 
-    box-shadow: 0 0 0 2px var(--bg-body), 0 0 0 5px var(--accent), 0 10px 20px rgba(0,0,0,0.2); 
+    /* EXACT double-ring glow from the screenshot! */
+    box-shadow: 0 0 0 3px var(--bg-body), 0 0 0 5px var(--accent), 0 10px 20px rgba(0,0,0,0.15); 
     transform: scale(1.02); 
 }
 
@@ -122,14 +125,13 @@ input:focus, select:focus { outline: none; }
 .menu-card:active { transform: scale(0.96); }
 .menu-card .cat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 800; margin-bottom: 8px; letter-spacing: 0.5px; }
 .menu-card .name { font-weight: 700; font-size: 14px; color: var(--text-dark); margin-bottom: 8px; line-height: 1.3; }
-.menu-card .price { font-weight: 800; color: var(--accent); font-size: 18px; margin-bottom: 12px; margin-top: auto; }
+.menu-card .price { font-weight: 800; color: #B85D38; font-size: 18px; margin-bottom: 12px; margin-top: auto; }
 
-/* The Add & Stock Buttons */
-.menu-card .add-btn { background: var(--primary-dark); color: #fff; border: none; border-radius: 20px; padding: 8px 10px; font-weight: 700; font-size: 13px; width: 100%; transition: 0.2s; pointer-events: none; }
-.menu-card .in-stock-btn { background: var(--bg-surface); color: var(--text-dark); border: 1px solid var(--border); border-radius: 20px; padding: 8px 10px; font-weight: 600; font-size: 12px; width: 100%; pointer-events: none; }
-.menu-card .out-stock-btn { background: var(--bg-surface); color: var(--danger); border: 1px solid var(--danger); border-radius: 20px; padding: 8px 10px; font-weight: 600; font-size: 12px; width: 100%; pointer-events: none; }
-
-/* The Top-Right Stock Badge */
+/* Dynamic Badges & Buttons */
+.menu-card .badge-popular { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: var(--warning); color: #fff; font-size: 10px; padding: 3px 10px; border-radius: 12px; font-weight: 700; border: 2px solid var(--bg-surface); white-space: nowrap;}
+.menu-card .add-btn { background: var(--primary-dark); color: #fff; border: none; border-radius: 20px; padding: 8px 10px; font-weight: 700; font-size: 13px; width: 100%; transition: 0.2s; pointer-events: none; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+.menu-card .in-stock-btn { background: #F0F6F1; color: #2E7D32; border: none; border-radius: 20px; padding: 8px 10px; font-weight: 700; font-size: 12px; width: 100%; pointer-events: none; }
+.menu-card .out-stock-btn { background: #F9EAEA; color: var(--danger); border: none; border-radius: 20px; padding: 8px 10px; font-weight: 700; font-size: 12px; width: 100%; pointer-events: none; }
 .stock-badge { position: absolute; top: -8px; right: -8px; background: var(--primary-dark); color: white; font-size: 11px; padding: 4px 10px; border-radius: 12px; font-weight: 800; box-shadow: 0 4px 8px rgba(0,0,0,0.3); border: 2px solid #fff; }
 
 /* ✨ DESKTOP CART DRAWER ✨ */
@@ -244,15 +246,23 @@ input:focus, select:focus { outline: none; }
         justify-content: space-between;
         align-items: center;
         padding: 10px 20px;
-        border: 1.5px solid var(--accent); /* THE GOLDEN CHECKOUT BORDER */
+        border: 1px solid rgba(198, 124, 78, 0.5); /* The subtle border on the pill */
         box-shadow: 0 10px 25px rgba(75, 46, 43, 0.4);
         margin-bottom: 12px;
         cursor: pointer;
     }
     .fc-left { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.9); }
     .fc-divider { width: 1px; height: 20px; background: rgba(255,255,255,0.2); margin: 0 15px; }
-    .fc-center { font-size: 18px; font-weight: 800; }
-    .fc-right { font-weight: 700; font-size: 16px; margin-left: auto; color: var(--accent); }
+    .fc-center { font-size: 18px; font-weight: 800; color: #fff; } /* Forced white text */
+    .fc-right { 
+        font-weight: 700; 
+        font-size: 15px; 
+        margin-left: auto; 
+        color: #fff; 
+        border: 1px solid rgba(255,255,255,0.2); /* Added subtle button ring inside pill */
+        padding: 6px 12px;
+        border-radius: 20px;
+    }
 
     /* Mini Action Buttons below cart */
     .mini-actions { display: flex; gap: 8px; }
