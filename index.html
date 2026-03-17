@@ -8,9 +8,8 @@
     <title>Premium Cafe POS System</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#4A2E1F">
+    <meta name="theme-color" content="#3B2A22">
     <link rel="apple-touch-icon" href="icon-192.png">
-    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -196,13 +195,14 @@
             
             <div id="pos" class="view active">
                 <div class="pos-layout">
+                    
                     <div class="pos-left">
                         <div class="tables-wrapper">
                             <div class="table-legend">
-                                <span><i style="background: var(--status-occupied-border);"></i> Ordering</span>
-                                <span><i style="background: var(--status-saved-border);"></i> Kitchen</span>
-                                <span><i style="background: var(--status-served-border);"></i> Served</span>
-                                <span><i style="background: var(--status-alert-border);"></i> Alert</span>
+                                <span><i style="background: #D98C21;"></i> Ordering</span>
+                                <span><i style="background: #6B7280;"></i> Kitchen</span>
+                                <span><i style="background: #B25A38;"></i> Served</span>
+                                <span><i style="background: #B53B3B;"></i> Alert</span>
                             </div>
                             <div class="table-grid" id="tableGridUI"></div>
                         </div>
@@ -212,8 +212,15 @@
                             <div class="menu-grid" id="menuGridUI"></div>
                         </div>
                     </div>
-                    <div class="pos-right">
-                        <div class="cart-header"><h3>🛒 Table <span id="activeTableUI">1</span></h3></div>
+                    
+                    <div class="pos-right" id="cartDrawer">
+                        <div class="cart-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3 style="margin: 0;">🛒 Table <span id="activeTableUI">1</span></h3>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <button class="btn btn-outline" style="padding: 6px; border: none; color: var(--danger); font-size: 16px;" onclick="clearTable()">🗑️</button>
+                                <button class="close-drawer-btn" onclick="toggleCartDrawer()">✖</button>
+                            </div>
+                        </div>
                         <div class="cart-items-container" id="cartUI"></div>
                         <div class="cart-footer">
                             <div class="total-display">
@@ -223,22 +230,36 @@
                                 </div>
                                 <h2>₹<span id="totalUI">0</span></h2>
                             </div>
-                            <div class="cart-actions">
-                                <button class="btn btn-outline" onclick="bookTable()">📅 <span>Reserve</span></button>
-                                <button class="btn btn-warning" onclick="sendToKitchen()">👨‍🍳 <span>Kitchen</span></button>
-                                <button class="btn" style="background: #DFE3E8; color: var(--text-dark);" onclick="markServed()">🍽️ <span>Served</span></button>
-                                <button class="btn btn-danger" style="background: transparent; color: var(--danger); border: 2px solid var(--danger);" onclick="clearTable()">🗑️ <span>Clear</span></button>
-                                <button class="btn btn-success btn-full checkout-fab" onclick="openCheckoutModal()">
-                                    💵 Checkout <span id="mobileTotalUI"></span>
-                                </button>
+                            <div class="cart-actions desktop-actions">
+                                <button class="btn btn-outline" onclick="bookTable()">📅 Reserve</button>
+                                <button class="btn btn-warning" onclick="sendToKitchen()">👨‍🍳 Kitchen</button>
+                                <button class="btn" style="background: #E8E0D5; color: var(--text-dark);" onclick="markServed()">🍽️ Served</button>
+                                <button class="btn btn-danger" style="background: transparent; color: var(--danger); border: 2px solid var(--danger);" onclick="clearTable()">🗑️ Clear</button>
+                                <button class="btn btn-success btn-full" style="font-size: 16px;" onclick="openCheckoutModal()">💵 Checkout</button>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                <div class="mobile-pos-actions">
+                    <div id="floatingCart" class="floating-cart" style="display: none;">
+                        <div class="fc-left" onclick="toggleCartDrawer()">
+                            <span class="icon">🧾</span> <span id="fc-count">0 items</span>
+                        </div>
+                        <div class="fc-center" onclick="toggleCartDrawer()">₹<span id="fc-total">0</span></div>
+                        <button class="fc-right" onclick="openCheckoutModal()">Checkout ➔</button>
+                    </div>
+                    <div class="mini-actions">
+                        <button class="btn" onclick="bookTable()">📅 Reserve</button>
+                        <button class="btn" onclick="sendToKitchen()">👨‍🍳 Kitchen</button>
+                        <button class="btn" onclick="markServed()">🍽️ Served</button>
+                        <button class="btn" onclick="toggleCartDrawer()">🛒 View Order</button>
+                    </div>
+                </div>
+
             </div>
 
             <div id="menu" class="view">
-                
                 <div style="background: linear-gradient(135deg, #10a37f, #0b7a5e); padding: 18px 25px; border-radius: var(--radius-lg); margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; color: white; box-shadow: 0 8px 20px rgba(16, 163, 127, 0.25); flex-wrap: wrap; gap: 15px;">
                     <div>
                         <h3 style="margin: 0; color: white; font-size: 18px; font-weight: 800;">🤖 Smart Menu Import Engine</h3>
