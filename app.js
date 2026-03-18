@@ -214,7 +214,6 @@ function deleteCategory(cat) {
 
 function filterMenu(category) { activeCategory = category; renderCategoryFilters(); renderMenuUI(); }
 
-// ✨ 8. CART & TABLE MANAGEMENT (WITH STATUS DOTS)
 function renderTables() {
     const grid = document.getElementById('tableGridUI'); grid.innerHTML = '';
     for(let i = 1; i <= shopProfile.tableCount; i++) {
@@ -252,7 +251,6 @@ function modifyQty(itemId, delta, event) {
 
 function clearTable() { if(confirm("Clear this entire order?")) { tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); renderTables(); updateCartUI(); renderMenuUI(); document.getElementById('cartDrawer').classList.remove('open'); } }
 
-// ✨ DYNAMIC ZOMATO-STYLE MENU GRID UPDATER ✨
 function renderMenuUI() {
     const posGrid = document.getElementById('menuGridUI'); posGrid.innerHTML = '';
     const searchText = (document.getElementById('menuSearchInput').value || '').toLowerCase();
@@ -276,7 +274,6 @@ function renderMenuUI() {
             else if (item.stockQty > 5) stockBadge = `<div class="stock-badge">${item.stockQty} left</div>`;
         }
 
-        // Live Cart Quantity Integration
         if (item.trackStock && item.stockQty <= 0) {
             buttonHtml = `<div class="out-stock-btn">Out of Stock</div>`;
         } else if (qtyInCart > 0) {
@@ -451,7 +448,6 @@ function confirmAiImport() {
     } catch (error) { console.error(error); showToast("❌ Import failed: " + error.message); } finally { if (btn) { btn.disabled = false; btn.innerText = "✅ Confirm & Import"; } }
 }
 
-// ✨ 7. EXPENSES & REPORTS
 function addExpense() {
     const name = document.getElementById('expenseName').value; const cost = parseFloat(document.getElementById('expenseCost').value); 
     if(name && cost) { 
@@ -517,159 +513,21 @@ function exportHistoryToExcel() {
     const link = document.createElement("a"); link.setAttribute("href", URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }))); link.setAttribute("download", `Sales_${dateInput}.csv`); link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
 
-function updateCartUI() {
-    const cartDiv = document.getElementById('cartUI'); cartDiv.innerHTML = '';
-    let total = 0; let totalGstAmt = 0; let currentCart = tablesInfo[activeTable].items || [];
-    if (currentCart.length === 0) {
-        cartDiv.innerHTML = `<div style="text-align: center; color: var(--text-muted); margin-top: 40px; font-weight: 600;">Select items from the menu to start an order.</div>`;
-    } else {
-        currentCart.forEach((item) => {
-            let itemTotal = item.price * item.qty; total += itemTotal; let gst = item.gstRate || 0;
-            if (gst > 0) { let basePrice = itemTotal / (1 + (gst / 100)); totalGstAmt += (itemTotal - basePrice); }
-            cartDiv.innerHTML += `<div class="cart-item"><div class="cart-item-top"><span class="cart-item-name">${item.name}</span><span class="cart-item-price">₹${itemTotal.toFixed(2)}</span></div><div class="cart-item-bottom"><span class="cart-item-math">₹${item.price.toFixed(2)} each</span><div class="qty-pill"><button onclick="modifyQty(${item.id}, -1)">-</button><span>${item.qty}</span><button onclick="modifyQty(${item.id}, 1)">+</button></div></div></div>`;
-        });
-    }
-    
-    document.getElementById('totalUI').innerText = total.toFixed(2); 
-    document.getElementById('gstBreakdownUI').innerText = totalGstAmt > 0 ? `Includes ₹${totalGstAmt.toFixed(2)} GST` : "No GST Applied";
-    
-    let totalItems = currentCart.reduce((sum, item) => sum + item.qty, 0);
-    const fc = document.getElementById('floatingCart');
-    
-    if (fc) {
-        if (totalItems > 0) {
-            fc.style.display = 'flex';
-            document.getElementById('fc-count').innerText = `📄 ${totalItems} items`;
-            document.getElementById('fc-total').innerText = `₹${total.toFixed(2)}`;
-        } else {
-            fc.style.display = 'none';
-            document.getElementById('cartDrawer').classList.remove('open');
-        }
-    }
-    
-    cartDiv.scrollTop = cartDiv.scrollHeight;
-}
-
-function toggleCartDrawer() { document.getElementById('cartDrawer').classList.toggle('open'); }
-
-function markServed() { let tInfo = tablesInfo[activeTable]; if(tInfo.items.length === 0) return showToast("Table empty!"); tInfo.status = 'served'; tInfo.lastReminder = Date.now(); persistTables(); renderTables(); showToast(`Table ${activeTable} served. Timer started.`); }
-setInterval(() => { const now = Date.now(); let needsSync = false; for(let i = 1; i <= shopProfile.tableCount; i++) { let tInfo = tablesInfo[i]; if(tInfo.status === 'served' || tInfo.status === 'alert') { if(tInfo.lastReminder && (now - tInfo.lastReminder) >= ALERT_THRESHOLD_MS) { tInfo.status = 'alert'; tInfo.lastReminder = now; needsSync = true; showToast(`⚠️ Table ${i} unpaid!`); } } } if(needsSync) { persistTables(); renderTables(); } }, 5000); 
-
-function selectPayment(mode, context) {
-    if(context === 'checkout') { document.getElementById('selectedPaymentMode').value = mode; document.querySelectorAll('#checkoutModal .pay-btn').forEach(b => b.classList.remove('selected')); document.getElementById('btnPay' + mode).classList.add('selected'); } 
-    else if (context === 'edit') { document.getElementById('editSelectedPaymentMode').value = mode; document.querySelectorAll('#editOrderModal .pay-btn').forEach(b => b.classList.remove('selected')); document.getElementById('editBtnPay' + mode).classList.add('selected'); }
-}
-
-function openCheckoutModal() {
-    let tInfo = tablesInfo[activeTable]; if(tInfo.items.length === 0) return showToast(`Table ${activeTable} is empty!`);
-    let total = tInfo.items.reduce((sum, item) => sum + (item.price * item.qty), 0);
-    document.getElementById('checkoutTotal').innerText = total.toFixed(2); document.getElementById('checkoutTableNoDisplay').innerText = activeTable; document.getElementById('checkoutTotalItems').innerText = tInfo.items.length;
-    document.getElementById('checkoutOrderType').value = "Dine-In"; selectPayment('Cash', 'checkout');
-    document.getElementById('checkoutCustomerName').value = ''; document.getElementById('checkoutBillerName').value = '';
-    document.getElementById('checkoutModal').style.display = 'flex';
-}
-
-// ✨ 9. CHECKOUT ENGINE
-async function confirmCheckout() {
-    let tInfo = tablesInfo[activeTable]; 
-    if(!tInfo || tInfo.items.length === 0) return showToast(`Table ${activeTable} is empty!`);
-    
-    const payBtn = document.querySelector('#checkoutModal .btn-success');
-    payBtn.disabled = true; payBtn.innerText = printCharacteristic ? "⏳ Printing Receipt..." : "📄 Generating PDF...";
-    document.getElementById('checkoutModal').style.display = 'none';
-    
-    try {
-        let total = 0; const itemNames = tInfo.items.map(i => `${i.name} (x${i.qty})`).join(', ');
-        tInfo.items.forEach(item => { total += (item.price * item.qty); });
-
-        const oType = document.getElementById('checkoutOrderType').value; const pMode = document.getElementById('selectedPaymentMode').value;
-        const cName = document.getElementById('checkoutCustomerName').value.trim(); const bName = document.getElementById('checkoutBillerName').value.trim();
-        const fullDateStr = new Date().toLocaleString(); const safeFilterDate = getLocalISODate(); const finalTableStr = oType === 'Takeaway' ? 'Takeaway' : `Table ${activeTable}`;
-
-        const currentStartNo = shopProfile.startInvoiceNo || 1001; const highestExistingBill = orderHistory.length > 0 ? Math.max(...orderHistory.map(o => o.billNo || 0)) : 0;
-        const generatedBillNo = Math.max(currentStartNo, highestExistingBill + 1);
-
-        const newOrder = { id: Date.now(), billNo: generatedBillNo, date: fullDateStr, filterDate: safeFilterDate, table: finalTableStr, orderType: oType, paymentMode: pMode, customer: cName, biller: bName, items: itemNames, rawItems: JSON.parse(JSON.stringify(tInfo.items)), amount: total };
-        await sendEscPosToPrinter(newOrder);
+// ✨ PRINT FALLBACK FIX (Reliable on iOS/Android Chrome) ✨
+function executeHtmlPrint(divId) {
+    return new Promise(resolve => {
+        document.body.classList.add('printing');
+        document.getElementById(divId).style.display = 'block';
         
-        tInfo.items.forEach(cartItem => { const mItem = menuItems.find(m => m.id === cartItem.id); if (mItem && mItem.trackStock) { mItem.stockQty -= cartItem.qty; if (mItem.stockQty < 0) mItem.stockQty = 0; } });
-        persistMenu(); orderHistory.unshift(newOrder); persistHistoryFirebase(); 
-        tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); 
-        pushToGoogleSheetsQueue('addOrder', newOrder); renderTables(); updateCartUI(); renderMenuUI();
-        document.getElementById('cartDrawer').classList.remove('open');
-        showToast("✅ Payment recorded & Table cleared.");
-    } catch (e) { console.error(e); showToast("❌ Error processing checkout."); } 
-    finally { payBtn.disabled = false; payBtn.innerText = "🖨️ Pay & Print"; }
-}
-
-
-// ✨ 10. KITCHEN ORDER TICKET (KOT) ENGINE
-function sendToKitchen() { 
-    let tInfo = tablesInfo[activeTable]; if(tInfo.items.length === 0) return showToast("Nothing to send!"); 
-    tInfo.status = 'saved'; persistTables(); renderTables(); document.getElementById('kotTableNoDisplay').innerText = activeTable; document.getElementById('kotModal').style.display = 'flex';
-}
-
-async function printKitchenTicket() {
-    const btn = document.querySelector('#kotModal .btn-warning'); btn.disabled = true; btn.innerText = printCharacteristic ? "⏳ Printing KOT..." : "📄 Generating PDF KOT...";
-    let tInfo = tablesInfo[activeTable];
-    try { await sendKotToPrinter(activeTable, tInfo.items); document.getElementById('kotModal').style.display = 'none'; showToast(`👨‍🍳 Table ${activeTable} KOT Processed.`); } 
-    catch(e) { console.error(e); showToast("❌ KOT Error."); } finally { btn.disabled = false; btn.innerText = "🖨️ Print KOT"; }
-}
-
-// ✨ 11. ADVANCED ESC/POS BLUETOOTH & HTML ENGINE
-async function getLogoBytes(base64Image) {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-            const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
-            const maxWidth = 200; let width = img.width; let height = img.height;
-            if (width > maxWidth) { const ratio = maxWidth / width; width = maxWidth; height = height * ratio; }
-            width = Math.floor(width / 8) * 8; height = Math.floor(height);
-            canvas.width = width; canvas.height = height;
-            ctx.fillStyle = 'white'; ctx.fillRect(0, 0, width, height); ctx.drawImage(img, 0, 0, width, height);
-            const imgData = ctx.getImageData(0, 0, width, height).data; const widthBytes = width / 8;
-            const data = new Uint8Array(8 + (widthBytes * height));
-            data[0] = 0x1D; data[1] = 0x76; data[2] = 0x30; data[3] = 0x00;
-            data[4] = widthBytes & 0xFF; data[5] = (widthBytes >> 8) & 0xFF;
-            data[6] = height & 0xFF; data[7] = (height >> 8) & 0xFF;
-            let offset = 8;
-            for (let y = 0; y < height; y++) {
-                for (let x = 0; x < width; x += 8) {
-                    let byte = 0;
-                    for (let b = 0; b < 8; b++) {
-                        const idx = ((y * width) + x + b) * 4;
-                        const brightness = (imgData[idx] * 0.299 + imgData[idx + 1] * 0.587 + imgData[idx + 2] * 0.114);
-                        if (brightness < 128) byte |= (1 << (7 - b)); 
-                    }
-                    data[offset++] = byte;
-                }
-            }
-            resolve(data);
-        };
-        img.onerror = () => resolve(null); img.src = base64Image;
+        setTimeout(() => {
+            window.print();
+            setTimeout(() => {
+                document.body.classList.remove('printing');
+                document.getElementById(divId).style.display = 'none';
+                resolve();
+            }, 1000); 
+        }, 300);
     });
-}
-
-let bleDevice = null; let bleServer = null; let printCharacteristic = null;
-
-async function connectBluetoothPrinter() {
-    if (!navigator.bluetooth) return alert("Web Bluetooth is not supported on this browser (Try Chrome on Android/PC).");
-    try {
-        showToast("Searching for Bluetooth printers...");
-        bleDevice = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb', 'e7810a71-73ae-499d-8c15-faa9aef0c3f2', '49535343-fe7d-4ae5-8fa9-9fafd205e455'] });
-        bleDevice.addEventListener('gattserverdisconnected', () => { showToast("⚠️ Printer Disconnected."); printCharacteristic = null; document.getElementById('btnBleStatus').innerHTML = "📡 Pair BLE Printer"; });
-        bleServer = await bleDevice.gatt.connect();
-        const services = await bleServer.getPrimaryServices();
-        for (let service of services) {
-            const characteristics = await service.getCharacteristics();
-            for (let characteristic of characteristics) {
-                if (characteristic.properties.write || characteristic.properties.writeWithoutResponse) {
-                    printCharacteristic = characteristic; showToast("🖨️ Printer Connected Successfully!"); document.getElementById('btnBleStatus').innerHTML = "✅ Printer Connected"; return;
-                }
-            }
-        }
-        showToast("❌ Could not find a valid print service.");
-    } catch (error) { console.error(error); showToast("Bluetooth Connection Cancelled/Failed."); }
 }
 
 async function sendEscPosToPrinter(order) {
@@ -677,9 +535,6 @@ async function sendEscPosToPrinter(order) {
 
     if (!printCharacteristic) {
         showToast("⚠️ No BLE Printer found. Opening PDF Preview..."); 
-        document.getElementById('print-kot').style.display = 'none';
-        document.getElementById('print-receipt').style.display = 'block';
-
         document.getElementById('printBillNo').innerText = order.billNo; document.getElementById('printDate').innerText = order.date;
         if(order.orderType === 'Takeaway') { document.getElementById('printTableNoRow').style.display = 'none'; } else { document.getElementById('printTableNoRow').style.display = 'block'; document.getElementById('printTableNo').innerText = String(order.table).replace('Table ', ''); }
         document.getElementById('printOrderType').innerText = order.orderType; document.getElementById('printPayMode').innerText = order.paymentMode;
@@ -719,9 +574,8 @@ async function sendEscPosToPrinter(order) {
 
         document.getElementById('printTotal').innerText = `₹${order.amount.toFixed(2)}`;
         
-        return new Promise(resolve => {
-            setTimeout(() => { window.print(); setTimeout(() => { document.getElementById('print-receipt').style.display = 'none'; resolve(); }, 1500); }, 300); 
-        });
+        await executeHtmlPrint('print-receipt');
+        return;
     }
 
     const ESC = '\x1B'; const GS = '\x1D'; const INIT = ESC + '@'; 
@@ -802,10 +656,12 @@ async function sendEscPosToPrinter(order) {
 async function sendKotToPrinter(tableNo, items) {
     if (!printCharacteristic) {
         showToast("⚠️ No BLE Printer found. Opening PDF Preview..."); 
-        document.getElementById('print-receipt').style.display = 'none'; document.getElementById('print-kot').style.display = 'block'; document.getElementById('printKotTableNo').innerText = tableNo; document.getElementById('printKotTime').innerText = new Date().toLocaleTimeString();
+        document.getElementById('printKotTableNo').innerText = tableNo; document.getElementById('printKotTime').innerText = new Date().toLocaleTimeString();
         let itemsHtml = ''; items.forEach(item => { itemsHtml += `<div style="display:flex; justify-content:space-between; margin-bottom: 8px; border-bottom: 1px dashed #ccc; padding-bottom: 4px;"><span>${item.name}</span><span style="font-size:18px;">x${item.qty}</span></div>`; });
         document.getElementById('printKotItems').innerHTML = itemsHtml;
-        return new Promise(resolve => { setTimeout(() => { window.print(); setTimeout(() => { document.getElementById('print-kot').style.display = 'none'; resolve(); }, 1500); }, 300); });
+        
+        await executeHtmlPrint('print-kot');
+        return;
     }
 
     const ESC = '\x1B'; const GS = '\x1D'; const INIT = ESC + '@'; const ALIGN_CENTER = ESC + 'a\x01'; const ALIGN_LEFT = ESC + 'a\x00'; const BOLD_ON = ESC + 'E\x01'; const BOLD_OFF = ESC + 'E\x00'; const DOUBLE_SIZE = GS + '!\x11'; const NORMAL_SIZE = GS + '!\x00'; const FEED_AND_CUT = '\x0A\x0A\x0A\x0A' + ESC + 'm'; 
@@ -816,9 +672,6 @@ async function sendKotToPrinter(tableNo, items) {
     const encoder = new TextEncoder(); const payload = encoder.encode(kotText); const CHUNK_SIZE = 100; 
     try { for (let i = 0; i < payload.length; i += CHUNK_SIZE) { const chunk = payload.slice(i, i + CHUNK_SIZE); await printCharacteristic.writeValue(chunk); await new Promise(resolve => setTimeout(resolve, 20)); } } catch(e) { console.error(e); showToast("❌ KOT Print Failed."); }
 }
-
-function reprintReceipt(orderId) { const order = orderHistory.find(o => o.id === orderId); if (!order || !order.rawItems) return showToast("Cannot print old order details."); sendEscPosToPrinter(order); }
-function testThermalPrinter() { const dummyOrder = { billNo: 'TEST-999', date: new Date().toLocaleString(), orderType: 'Dine-In', paymentMode: 'Cash', amount: 270, rawItems: [ {name: "Standard Espresso", qty: 1, price: 80, gstRate: 5}, {name: "Water Bottle", qty: 2, price: 20, gstRate: 0} ] }; sendEscPosToPrinter(dummyOrder); }
 
 document.addEventListener('keydown', function(event) {
     if (event.key === 'Enter') {
