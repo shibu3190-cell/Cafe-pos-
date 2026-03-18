@@ -87,6 +87,7 @@ function updateAllUI() {
     document.getElementById('openAiKeyInput').value = shopProfile.openAiKey || '';
 }
 
+// ✨ DB RACE CONDITION FIX: Object.values to Arrays ✨
 window.addEventListener('firebaseLoaded', () => {
     if(!navigator.onLine) return; 
     const dataRef = window.firebaseRef(window.firebaseDB, `clients/${myClientID}`);
@@ -94,7 +95,12 @@ window.addEventListener('firebaseLoaded', () => {
         if (snapshot.exists()) {
             const data = snapshot.val();
             shopProfile = data.profile || shopProfile; if(!shopProfile.startInvoiceNo) shopProfile.startInvoiceNo = 1001;
-            menuItems = data.menu || []; menuCategories = data.categories || menuCategories; orderHistory = data.history || []; dailyExpenses = data.expenses || [];
+            menuItems = data.menu || []; menuCategories = data.categories || menuCategories; 
+            
+            // Safely convert objects back to arrays if update() was used
+            orderHistory = data.history ? (Array.isArray(data.history) ? data.history : Object.values(data.history).sort((a,b) => b.id - a.id)) : [];
+            dailyExpenses = data.expenses ? (Array.isArray(data.expenses) ? data.expenses : Object.values(data.expenses).sort((a,b) => b.id - a.id)) : [];
+            
             let fetchedTables = data.tables || {};
             for(let i = 1; i <= shopProfile.tableCount; i++) {
                 if(fetchedTables[i]) { tablesInfo[i] = fetchedTables[i]; if(!tablesInfo[i].items) tablesInfo[i].items = []; } 
@@ -109,9 +115,34 @@ function persistAllToFirebase() { saveToLocal(); if(navigator.onLine && window.f
 function persistTables() { saveToLocal(); if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/tables`), tablesInfo); }
 function persistMenu() { saveToLocal(); if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/menu`), menuItems); }
 function persistCategories() { saveToLocal(); if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/categories`), menuCategories); }
-function persistExpensesFirebase() { saveToLocal(); if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/expenses`), dailyExpenses); }
-function persistHistoryFirebase() { saveToLocal(); if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/history`), orderHistory); }
 function persistProfile() { saveToLocal(); if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/profile`), shopProfile); }
+
+// ✨ DB RACE CONDITION FIX: Surgical Appends ✨
+function persistHistoryFirebase(newOrder = null) { 
+    saveToLocal(); 
+    if(!navigator.onLine) return;
+    if (newOrder && window.firebaseUpdate) {
+        let updates = {};
+        updates[`clients/${myClientID}/history/${newOrder.id}`] = newOrder;
+        window.firebaseUpdate(window.firebaseRef(window.firebaseDB), updates);
+    } else if (window.firebaseSet) {
+        let histObj = {}; orderHistory.forEach(o => histObj[o.id] = o);
+        window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/history`), histObj);
+    }
+}
+
+function persistExpensesFirebase(newExp = null) { 
+    saveToLocal(); 
+    if(!navigator.onLine) return;
+    if (newExp && window.firebaseUpdate) {
+        let updates = {};
+        updates[`clients/${myClientID}/expenses/${newExp.id}`] = newExp;
+        window.firebaseUpdate(window.firebaseRef(window.firebaseDB), updates);
+    } else if (window.firebaseSet) {
+        let expObj = {}; dailyExpenses.forEach(e => expObj[e.id] = e);
+        window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/expenses`), expObj);
+    }
+}
 
 function updateConnectionStatus() {
     const badge = document.getElementById('offlineBadge');
@@ -214,20 +245,47 @@ function deleteCategory(cat) {
 
 function filterMenu(category) { activeCategory = category; renderCategoryFilters(); renderMenuUI(); }
 
-// ✨ 8. CART & TABLE MANAGEMENT (WITH STATUS DOTS)
+// ✨ 8. SURGICAL TABLE RENDERING (PERFORMANCE UPGRADE) ✨
 function renderTables() {
     const grid = document.getElementById('tableGridUI'); grid.innerHTML = '';
     for(let i = 1; i <= shopProfile.tableCount; i++) {
         const tInfo = tablesInfo[i]; let classes = 'table-btn';
-        if (tInfo.status === 'alert') classes += ' alert'; else if (tInfo.status === 'served') classes += ' served'; else if (tInfo.status === 'saved') classes += ' saved'; else if (tInfo.status === 'occupied') classes += ' occupied'; else if (tInfo.status === 'booked') classes += ' booked';
+        if (tInfo.status !== 'empty') classes += ` ${tInfo.status}`;
         if (i === activeTable) classes += ' selected';
-        let amt = tInfo.items.length > 0 ? `<span class="amt">₹${tInfo.items.reduce((sum, item) => sum + (item.price * item.qty), 0).toFixed(2)}</span>` : (tInfo.status === 'booked' ? `<span class="amt">Rsrvd</span>` : "");
+        let amt = tInfo.items.length > 0 ? `₹${tInfo.items.reduce((sum, item) => sum + (item.price * item.qty), 0).toFixed(2)}` : (tInfo.status === 'booked' ? `Rsrvd` : "");
         
-        grid.innerHTML += `<div class="${classes}" onclick="selectTable(${i})"><div class="table-status-dot"></div>T-${i}${amt}</div>`;
+        grid.innerHTML += `<div id="table-btn-${i}" class="${classes}" onclick="selectTable(${i})"><div class="table-status-dot"></div>T-${i}<span class="amt" id="table-amt-${i}">${amt}</span></div>`;
     }
 }
-function selectTable(num) { activeTable = num; document.getElementById('activeTableUI').innerText = num; renderTables(); updateCartUI(); renderMenuUI(); }
-function bookTable() { let tInfo = tablesInfo[activeTable]; if(tInfo.items.length > 0) return showToast("Cannot reserve active table!"); tInfo.status = tInfo.status === 'booked' ? 'empty' : 'booked'; persistTables(); renderTables(); }
+
+function syncTableUI() {
+    for(let i = 1; i <= shopProfile.tableCount; i++) {
+        const tInfo = tablesInfo[i];
+        const tBtn = document.getElementById(`table-btn-${i}`);
+        if(tBtn) {
+            let classes = 'table-btn';
+            if (tInfo.status !== 'empty') classes += ` ${tInfo.status}`;
+            if (i === activeTable) classes += ' selected';
+            if (tBtn.className !== classes) tBtn.className = classes;
+        }
+        
+        const amtSpan = document.getElementById(`table-amt-${i}`);
+        if(amtSpan) {
+            let amt = tInfo.items.length > 0 ? `₹${tInfo.items.reduce((sum, item) => sum + (item.price * item.qty), 0).toFixed(2)}` : (tInfo.status === 'booked' ? `Rsrvd` : "");
+            if (amtSpan.innerText !== amt) amtSpan.innerText = amt;
+        }
+    }
+    document.getElementById('activeTableUI').innerText = activeTable;
+}
+
+function selectTable(num) { 
+    activeTable = num; 
+    syncTableUI(); 
+    updateCartUI(); 
+    syncMenuUIQuantities(); 
+}
+
+function bookTable() { let tInfo = tablesInfo[activeTable]; if(tInfo.items.length > 0) return showToast("Cannot reserve active table!"); tInfo.status = tInfo.status === 'booked' ? 'empty' : 'booked'; persistTables(); syncTableUI(); }
 
 function addToCart(itemId, event) {
     if (event) event.stopPropagation();
@@ -236,7 +294,7 @@ function addToCart(itemId, event) {
     if (menuItem.trackStock && (existing ? existing.qty + 1 : 1) > menuItem.stockQty) return showToast(`Only ${menuItem.stockQty} left!`);
     if(existing) existing.qty++; else tInfo.items.push({ id: menuItem.id, name: menuItem.name, price: menuItem.price, gstRate: menuItem.gstRate, qty: 1 });
     if(tInfo.status === 'empty' || tInfo.status === 'booked') tInfo.status = 'occupied'; 
-    persistTables(); renderTables(); updateCartUI(); renderMenuUI();
+    persistTables(); syncTableUI(); updateCartUI(); syncMenuUIQuantities();
 }
 
 function modifyQty(itemId, delta, event) {
@@ -246,12 +304,13 @@ function modifyQty(itemId, delta, event) {
         if (delta > 0 && menuItem && menuItem.trackStock && (item.qty + delta) > menuItem.stockQty) return showToast(`Only ${menuItem.stockQty} left!`);
         item.qty += delta; if(item.qty <= 0) tInfo.items = tInfo.items.filter(i => i.id !== itemId); 
         if(tInfo.items.length === 0 && tInfo.status !== 'booked') { tInfo.status = 'empty'; tInfo.savedTime = null; tInfo.lastReminder = null; }
-        persistTables(); renderTables(); updateCartUI(); renderMenuUI();
+        persistTables(); syncTableUI(); updateCartUI(); syncMenuUIQuantities();
     }
 }
 
-function clearTable() { if(confirm("Clear this entire order?")) { tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); renderTables(); updateCartUI(); renderMenuUI(); document.getElementById('cartDrawer').classList.remove('open'); } }
+function clearTable() { if(confirm("Clear this entire order?")) { tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); syncTableUI(); updateCartUI(); syncMenuUIQuantities(); document.getElementById('cartDrawer').classList.remove('open'); } }
 
+// ✨ SURGICAL MENU RENDERING (PERFORMANCE UPGRADE) ✨
 function renderMenuUI() {
     const posGrid = document.getElementById('menuGridUI'); posGrid.innerHTML = '';
     const searchText = (document.getElementById('menuSearchInput').value || '').toLowerCase();
@@ -261,20 +320,40 @@ function renderMenuUI() {
     filteredMenu.forEach(item => {
         let stockBadge = '';
         let popularBadge = item.badge ? `<div class="badge-popular">${item.badge}</div>` : '';
-        let buttonHtml = '';
         
-        let qtyInCart = 0;
-        if (tablesInfo[activeTable]) {
-            const existing = tablesInfo[activeTable].items.find(i => i.id === item.id);
-            if (existing) qtyInCart = existing.qty;
-        }
-
         if(item.trackStock) { 
             const isLow = item.stockQty <= 5 && item.stockQty > 0; 
             if(isLow) stockBadge = `<div class="stock-badge low">${item.stockQty} left</div>`;
             else if (item.stockQty > 5) stockBadge = `<div class="stock-badge">${item.stockQty} left</div>`;
         }
 
+        posGrid.innerHTML += `
+        <div class="menu-card" onclick="addToCart(${item.id}, event)">
+            ${popularBadge}
+            ${stockBadge}
+            <div class="cat-label">${item.category}</div>
+            <div class="name">${item.name}</div>
+            <div class="price">₹${item.price.toFixed(2)}</div>
+            <div id="menu-action-wrap-${item.id}"></div>
+        </div>`;
+    });
+    
+    syncMenuUIQuantities(); // Injects the proper buttons instantly
+    
+    document.getElementById('menuTableBody').innerHTML = menuItems.map(item => `<tr><td style="font-weight: 600; color: var(--text-dark);">${item.name}</td><td>${item.category}</td><td style="color: var(--accent); font-weight: 800;">₹${item.price.toFixed(2)}</td><td>${item.gstRate}%</td><td><strong style="color: ${item.trackStock && item.stockQty <= 5 ? 'var(--danger)' : 'inherit'};">${item.trackStock ? item.stockQty : '∞'}</strong></td><td><button class="btn btn-outline" style="padding: 6px 10px; font-size: 13px;" onclick="editMenuItem(${item.id})">Edit</button><button class="btn btn-danger" style="padding: 6px 10px; font-size: 13px;" onclick="deleteMenuItem(${item.id})">Del</button></td></tr>`).join('');
+}
+
+function syncMenuUIQuantities() {
+    let currentCart = tablesInfo[activeTable]?.items || [];
+    menuItems.forEach(item => {
+        const wrapper = document.getElementById(`menu-action-wrap-${item.id}`);
+        if(!wrapper) return;
+        
+        let qtyInCart = 0;
+        const existing = currentCart.find(i => i.id === item.id);
+        if(existing) qtyInCart = existing.qty;
+
+        let buttonHtml = '';
         if (item.trackStock && item.stockQty <= 0) {
             buttonHtml = `<div class="out-stock-btn">Out of Stock</div>`;
         } else if (qtyInCart > 0) {
@@ -285,21 +364,13 @@ function renderMenuUI() {
                 <button onclick="addToCart(${item.id}, event)">+</button>
             </div>`;
         } else {
-            buttonHtml = `<button class="add-btn">+ Add</button>`;
+            buttonHtml = `<button class="add-btn" onclick="addToCart(${item.id}, event)">+ Add</button>`;
         }
-
-        posGrid.innerHTML += `
-        <div class="menu-card" onclick="addToCart(${item.id}, event)">
-            ${popularBadge}
-            ${stockBadge}
-            <div class="cat-label">${item.category}</div>
-            <div class="name">${item.name}</div>
-            <div class="price">₹${item.price.toFixed(2)}</div>
-            ${buttonHtml}
-        </div>`;
+        
+        if (wrapper.innerHTML !== buttonHtml) {
+            wrapper.innerHTML = buttonHtml;
+        }
     });
-    
-    document.getElementById('menuTableBody').innerHTML = menuItems.map(item => `<tr><td style="font-weight: 600; color: var(--text-dark);">${item.name}</td><td>${item.category}</td><td style="color: var(--accent); font-weight: 800;">₹${item.price.toFixed(2)}</td><td>${item.gstRate}%</td><td><strong style="color: ${item.trackStock && item.stockQty <= 5 ? 'var(--danger)' : 'inherit'};">${item.trackStock ? item.stockQty : '∞'}</strong></td><td><button class="btn btn-outline" style="padding: 6px 10px; font-size: 13px;" onclick="editMenuItem(${item.id})">Edit</button><button class="btn btn-danger" style="padding: 6px 10px; font-size: 13px;" onclick="deleteMenuItem(${item.id})">Del</button></td></tr>`).join('');
 }
 
 
@@ -452,9 +523,10 @@ function confirmAiImport() {
 function addExpense() {
     const name = document.getElementById('expenseName').value; const cost = parseFloat(document.getElementById('expenseCost').value); 
     if(name && cost) { 
-        if (editingExpenseId) { const index = dailyExpenses.findIndex(e => e.id === editingExpenseId); if(index > -1) { dailyExpenses[index].name = name; dailyExpenses[index].cost = cost; } editingExpenseId = null; document.getElementById('addExpenseBtn').innerText = "- Record"; showToast("Expense updated."); } 
-        else { const newExpense = { id: Date.now(), date: new Date().toLocaleDateString(), filterDate: getLocalISODate(), time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), name: name, cost: cost }; dailyExpenses.unshift(newExpense); pushToGoogleSheetsQueue('addExpense', newExpense); showToast("Expense recorded."); }
-        document.getElementById('expenseName').value = ''; document.getElementById('expenseCost').value = ''; persistExpensesFirebase(); renderExpensesUI(); 
+        const newExpense = { id: Date.now(), date: new Date().toLocaleDateString(), filterDate: getLocalISODate(), time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), name: name, cost: cost };
+        if (editingExpenseId) { const index = dailyExpenses.findIndex(e => e.id === editingExpenseId); if(index > -1) { dailyExpenses[index].name = name; dailyExpenses[index].cost = cost; } editingExpenseId = null; document.getElementById('addExpenseBtn').innerText = "- Record"; showToast("Expense updated."); persistExpensesFirebase(); } 
+        else { dailyExpenses.unshift(newExpense); pushToGoogleSheetsQueue('addExpense', newExpense); persistExpensesFirebase(newExpense); showToast("Expense recorded."); }
+        document.getElementById('expenseName').value = ''; document.getElementById('expenseCost').value = ''; renderExpensesUI(); 
     } else { showToast("Please enter Item Name and Cost."); }
 }
 
@@ -549,8 +621,8 @@ function updateCartUI() {
 
 function toggleCartDrawer() { document.getElementById('cartDrawer').classList.toggle('open'); }
 
-function markServed() { let tInfo = tablesInfo[activeTable]; if(tInfo.items.length === 0) return showToast("Table empty!"); tInfo.status = 'served'; tInfo.lastReminder = Date.now(); persistTables(); renderTables(); showToast(`Table ${activeTable} served. Timer started.`); }
-setInterval(() => { const now = Date.now(); let needsSync = false; for(let i = 1; i <= shopProfile.tableCount; i++) { let tInfo = tablesInfo[i]; if(tInfo.status === 'served' || tInfo.status === 'alert') { if(tInfo.lastReminder && (now - tInfo.lastReminder) >= ALERT_THRESHOLD_MS) { tInfo.status = 'alert'; tInfo.lastReminder = now; needsSync = true; showToast(`⚠️ Table ${i} unpaid!`); } } } if(needsSync) { persistTables(); renderTables(); } }, 5000); 
+function markServed() { let tInfo = tablesInfo[activeTable]; if(tInfo.items.length === 0) return showToast("Table empty!"); tInfo.status = 'served'; tInfo.lastReminder = Date.now(); persistTables(); syncTableUI(); showToast(`Table ${activeTable} served. Timer started.`); }
+setInterval(() => { const now = Date.now(); let needsSync = false; for(let i = 1; i <= shopProfile.tableCount; i++) { let tInfo = tablesInfo[i]; if(tInfo.status === 'served' || tInfo.status === 'alert') { if(tInfo.lastReminder && (now - tInfo.lastReminder) >= ALERT_THRESHOLD_MS) { tInfo.status = 'alert'; tInfo.lastReminder = now; needsSync = true; showToast(`⚠️ Table ${i} unpaid!`); } } } if(needsSync) { persistTables(); syncTableUI(); } }, 5000); 
 
 function selectPayment(mode, context) {
     if(context === 'checkout') { document.getElementById('selectedPaymentMode').value = mode; document.querySelectorAll('#checkoutModal .pay-btn').forEach(b => b.classList.remove('selected')); document.getElementById('btnPay' + mode).classList.add('selected'); } 
@@ -568,19 +640,16 @@ function openCheckoutModal() {
 
 // ✨ PRINT FALLBACK FIX (Reliable on iOS/Android Chrome) ✨
 function executeHtmlPrint(divId) {
-    return new Promise(resolve => {
-        document.body.classList.add('printing');
-        document.getElementById(divId).style.display = 'block';
-        
+    document.body.classList.add('printing');
+    document.getElementById(divId).style.display = 'block';
+    
+    setTimeout(() => {
+        window.print();
         setTimeout(() => {
-            window.print();
-            setTimeout(() => {
-                document.body.classList.remove('printing');
-                document.getElementById(divId).style.display = 'none';
-                resolve();
-            }, 500); 
-        }, 300);
-    });
+            document.body.classList.remove('printing');
+            document.getElementById(divId).style.display = 'none';
+        }, 500); 
+    }, 100);
 }
 
 // ✨ 9. CHECKOUT ENGINE (SAVES DB *BEFORE* PRINTING) ✨
@@ -607,13 +676,13 @@ async function confirmCheckout() {
         
         // 🌟 CRITICAL FIX: Save EVERYTHING to the database first!
         tInfo.items.forEach(cartItem => { const mItem = menuItems.find(m => m.id === cartItem.id); if (mItem && mItem.trackStock) { mItem.stockQty -= cartItem.qty; if (mItem.stockQty < 0) mItem.stockQty = 0; } });
-        persistMenu(); orderHistory.unshift(newOrder); persistHistoryFirebase(); 
+        persistMenu(); orderHistory.unshift(newOrder); persistHistoryFirebase(newOrder); 
         tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); 
-        pushToGoogleSheetsQueue('addOrder', newOrder); renderTables(); updateCartUI(); renderMenuUI();
+        pushToGoogleSheetsQueue('addOrder', newOrder); syncTableUI(); updateCartUI(); syncMenuUIQuantities();
         document.getElementById('cartDrawer').classList.remove('open');
         showToast("✅ Payment recorded & Table cleared.");
 
-        // 🌟 THEN attempt to print (If print hangs on mobile, data is already safely saved!)
+        // 🌟 THEN attempt to print
         await sendEscPosToPrinter(newOrder);
 
     } catch (e) { console.error(e); showToast("❌ Error processing checkout."); } 
@@ -681,7 +750,6 @@ async function sendEscPosToPrinter(order) {
     let gstSummary = {}; 
 
     if (!printCharacteristic) {
-        showToast("⚠️ No BLE Printer found. Opening PDF Preview..."); 
         document.getElementById('printBillNo').innerText = order.billNo; document.getElementById('printDate').innerText = order.date;
         if(order.orderType === 'Takeaway') { document.getElementById('printTableNoRow').style.display = 'none'; } else { document.getElementById('printTableNoRow').style.display = 'block'; document.getElementById('printTableNo').innerText = String(order.table).replace('Table ', ''); }
         document.getElementById('printOrderType').innerText = order.orderType; document.getElementById('printPayMode').innerText = order.paymentMode;
@@ -721,7 +789,7 @@ async function sendEscPosToPrinter(order) {
 
         document.getElementById('printTotal').innerText = `₹${order.amount.toFixed(2)}`;
         
-        await executeHtmlPrint('print-receipt');
+        executeHtmlPrint('print-receipt');
         return;
     }
 
@@ -797,17 +865,22 @@ async function sendEscPosToPrinter(order) {
     }
 
     const CHUNK_SIZE = 100; 
-    try { for (let i = 0; i < payload.length; i += CHUNK_SIZE) { const chunk = payload.slice(i, i + CHUNK_SIZE); await printCharacteristic.writeValue(chunk); await new Promise(resolve => setTimeout(resolve, 20)); } } catch(e) { console.error(e); showToast("❌ Print Failed. Printer might be off."); }
+    try { 
+        for (let i = 0; i < payload.length; i += CHUNK_SIZE) { 
+            const chunk = payload.slice(i, i + CHUNK_SIZE); 
+            await printCharacteristic.writeValue(chunk); 
+            // ✨ FIX: Increased delay to prevent thermal printer buffer overflows ✨
+            await new Promise(resolve => setTimeout(resolve, 40)); 
+        } 
+    } catch(e) { console.error(e); showToast("❌ Print Failed. Printer might be off."); }
 }
 
 async function sendKotToPrinter(tableNo, items) {
     if (!printCharacteristic) {
-        showToast("⚠️ No BLE Printer found. Opening PDF Preview..."); 
         document.getElementById('printKotTableNo').innerText = tableNo; document.getElementById('printKotTime').innerText = new Date().toLocaleTimeString();
         let itemsHtml = ''; items.forEach(item => { itemsHtml += `<div style="display:flex; justify-content:space-between; margin-bottom: 8px; border-bottom: 1px dashed #ccc; padding-bottom: 4px;"><span>${item.name}</span><span style="font-size:18px;">x${item.qty}</span></div>`; });
         document.getElementById('printKotItems').innerHTML = itemsHtml;
-        
-        await executeHtmlPrint('print-kot');
+        executeHtmlPrint('print-kot');
         return;
     }
 
@@ -817,7 +890,13 @@ async function sendKotToPrinter(tableNo, items) {
     items.forEach(item => { kotText += DOUBLE_SIZE + `${item.qty}x ${item.name}\n` + NORMAL_SIZE; kotText += "--------------------------------\n"; });
     kotText += ALIGN_CENTER + "*** END OF KOT ***\n" + FEED_AND_CUT;
     const encoder = new TextEncoder(); const payload = encoder.encode(kotText); const CHUNK_SIZE = 100; 
-    try { for (let i = 0; i < payload.length; i += CHUNK_SIZE) { const chunk = payload.slice(i, i + CHUNK_SIZE); await printCharacteristic.writeValue(chunk); await new Promise(resolve => setTimeout(resolve, 20)); } } catch(e) { console.error(e); showToast("❌ KOT Print Failed."); }
+    try { 
+        for (let i = 0; i < payload.length; i += CHUNK_SIZE) { 
+            const chunk = payload.slice(i, i + CHUNK_SIZE); 
+            await printCharacteristic.writeValue(chunk); 
+            await new Promise(resolve => setTimeout(resolve, 40)); 
+        } 
+    } catch(e) { console.error(e); showToast("❌ KOT Print Failed."); }
 }
 
 document.addEventListener('keydown', function(event) {
