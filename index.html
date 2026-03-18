@@ -218,7 +218,7 @@
                     </div>
                     
                     <div class="pos-right" id="cartDrawer">
-                        <div class="cart-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <div class="drawer-handle"></div> <div class="cart-header" style="display: flex; justify-content: space-between; align-items: center;">
                             <h3 style="margin: 0; font-size: 18px; color: var(--primary);">🛒 TABLE <span id="activeTableUI">1</span></h3>
                             <div style="display: flex; align-items: center; gap: 10px;">
                                 <button class="btn btn-outline" style="padding: 6px; border: none; color: var(--danger); font-size: 16px;" onclick="clearTable()">🗑️</button>
@@ -449,6 +449,6 @@
         caches.keys().then(function(names) { for (let name of names) caches.delete(name); });
     </script>
     
-    <script src="app.js?v=1005"></script>
+    <script src="app.js?v=1006"></script>
 </body>
 </html>
