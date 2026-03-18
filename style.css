@@ -1,11 +1,11 @@
 :root {
     /* ✨ EXACT ROYAL CAFE THEME ✨ */
-    --primary: #4B2E2B;       /* Dark Coffee Brown */
+    --primary: #4B2E2B;       
     --primary-dark: #3A2321; 
     --primary-light: #7A5340; 
-    --accent: #C67C4E;        /* Latte Gold */
-    --bg-body: #F5F1EA;       /* Warm Cream */
-    --bg-surface: #FFFFFF;    /* Clean White Cards */
+    --accent: #C67C4E;        
+    --bg-body: #F5F1EA;       
+    --bg-surface: #FFFFFF;    
     --sidebar-bg: #4B2E2B;      
     --text-dark: #2B1D16; 
     --text-muted: #8A7A6F; 
@@ -88,8 +88,6 @@ input:focus, select:focus { outline: none; }
 .table-legend i { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
 
 .table-grid { display: flex; overflow-x: auto; gap: 12px; padding-bottom: 12px; scrollbar-width: none; }
-
-/* ✨ THE EXACT GOLDEN BORDER & TRANSPARENT GLASS TABLE ✨ */
 .table-btn { position: relative; flex: 0 0 auto; width: 85px; height: 85px; background: var(--bg-surface); border: none; border-radius: 16px; cursor: pointer; text-align: center; font-weight: 800; font-size: 18px; transition: 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(75, 46, 43, 0.05); color: var(--text-dark); }
 .table-status-dot { position: absolute; top: 8px; left: 8px; width: 10px; height: 10px; border-radius: 50%; display: none; }
 .table-btn.occupied .table-status-dot { display: block; background: var(--warning); }
@@ -99,10 +97,8 @@ input:focus, select:focus { outline: none; }
 
 .table-btn span.amt { font-size: 11px; font-weight: 700; margin-top: 4px; opacity: 0.8; }
 .table-btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
-
-/* The Glassy Transparent Selection Match */
 .table-btn.selected { 
-    background: rgba(75, 46, 43, 0.85); /* Premium slightly transparent coffee brown */
+    background: rgba(75, 46, 43, 0.85); 
     color: white; 
     box-shadow: 0 0 0 3px var(--accent), 0 10px 20px rgba(0,0,0,0.15); 
     transform: scale(1.02); 
@@ -119,8 +115,8 @@ input:focus, select:focus { outline: none; }
 .search-bar { width: 100%; padding: 16px 20px 16px 50px; border: none; border-radius: 30px; font-size: 15px; font-weight: 600; background: var(--bg-surface); box-shadow: var(--shadow-sm); transition: 0.3s; color: var(--text-dark); }
 .search-bar:focus { box-shadow: 0 0 0 3px rgba(75, 46, 43, 0.1); }
 
-/* ✨ EXACT MENU CARD MATCH WITH NEW MILK CHOCOLATE BUTTONS ✨ */
-.menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; align-content: start; padding-bottom: 30px; }
+/* ✨ EXACT MENU CARD MATCH ✨ */
+.menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 15px; align-content: start; padding-bottom: 30px; }
 .menu-card { background: var(--bg-surface); border: none; border-radius: 20px; padding: 16px 12px; cursor: pointer; text-align: center; display: flex; flex-direction: column; position: relative; transition: 0.2s; box-shadow: var(--shadow-md); }
 .menu-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
 .menu-card:active { transform: scale(0.96); }
@@ -128,22 +124,19 @@ input:focus, select:focus { outline: none; }
 .menu-card .name { font-weight: 700; font-size: 14px; color: var(--text-dark); margin-bottom: 8px; line-height: 1.3; }
 .menu-card .price { font-weight: 800; color: #B85D38; font-size: 18px; margin-bottom: 12px; margin-top: auto; }
 
-/* Dynamic Badges & Milk Chocolate Add Buttons */
 .menu-card .badge-popular { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: var(--warning); color: #fff; font-size: 10px; padding: 3px 10px; border-radius: 12px; font-weight: 700; border: 2px solid var(--bg-surface); white-space: nowrap;}
-.menu-card .add-btn { background: #8D5B4C; color: #fff; border: none; border-radius: 20px; padding: 8px 10px; font-weight: 700; font-size: 13px; width: 100%; transition: 0.2s; box-shadow: 0 4px 10px rgba(141, 91, 76, 0.2); }
+.menu-card .add-btn { background: #8D5B4C; color: #fff; border: none; border-radius: 20px; padding: 10px 10px; font-weight: 700; font-size: 14px; width: 100%; transition: 0.2s; box-shadow: 0 4px 10px rgba(141, 91, 76, 0.2); pointer-events: none;}
+.item-qty-control { display: flex; align-items: center; justify-content: space-between; background: #8D5B4C; color: white; border-radius: 20px; padding: 4px; width: 100%; box-shadow: 0 4px 10px rgba(141, 91, 76, 0.3); pointer-events: auto; height: 38px; }
+.item-qty-control button { background: transparent; border: none; color: white; font-size: 20px; font-weight: 800; width: 35px; height: 100%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.item-qty-control span { font-weight: 800; font-size: 15px; }
 
-/* LIVE ZOMATO-STYLE CART SPLIT BUTTON */
-.item-qty-control { display: flex; align-items: center; justify-content: space-between; background: #8D5B4C; color: white; border-radius: 20px; padding: 4px; width: 100%; box-shadow: 0 4px 10px rgba(141, 91, 76, 0.3); pointer-events: auto; height: 35px; }
-.item-qty-control button { background: transparent; border: none; color: white; font-size: 18px; font-weight: 800; width: 35px; height: 100%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-.item-qty-control span { font-weight: 800; font-size: 14px; }
-
-/* The Stock Pills */
-.menu-card .in-stock-btn { background: #F0F6F1; color: var(--success); border: none; border-radius: 20px; padding: 8px 10px; font-weight: 700; font-size: 12px; width: 100%; pointer-events: none; }
-.menu-card .out-stock-btn { background: #F9EAEA; color: var(--danger); border: none; border-radius: 20px; padding: 8px 10px; font-weight: 700; font-size: 12px; width: 100%; pointer-events: none; }
+.menu-card .in-stock-btn { background: #F0F6F1; color: var(--success); border: none; border-radius: 20px; padding: 10px 10px; font-weight: 700; font-size: 12px; width: 100%; pointer-events: none; }
+.menu-card .out-stock-btn { background: #F9EAEA; color: var(--danger); border: none; border-radius: 20px; padding: 10px 10px; font-weight: 700; font-size: 12px; width: 100%; pointer-events: none; }
 .stock-badge { position: absolute; top: -8px; right: -8px; background: var(--primary-dark); color: white; font-size: 11px; padding: 4px 10px; border-radius: 12px; font-weight: 800; box-shadow: 0 4px 8px rgba(0,0,0,0.3); border: 2px solid #fff; }
 
 /* ✨ DESKTOP CART DRAWER ✨ */
 .pos-right { width: 38%; min-width: 380px; max-width: 500px; flex-shrink: 0; background: var(--bg-surface); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); display: flex; flex-direction: column; overflow: hidden; transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.drawer-handle { display: none; }
 .cart-header { padding: 20px; border-bottom: 1px solid var(--border); background: var(--bg-surface); }
 .cart-items-container { flex: 1; overflow-y: auto; padding: 15px; background: var(--bg-surface); display: flex; flex-direction: column; gap: 10px; }
 .cart-item { background: var(--bg-body); border-radius: var(--radius-md); padding: 14px; display: flex; flex-direction: column; gap: 8px; }
@@ -164,7 +157,6 @@ input:focus, select:focus { outline: none; }
 
 .cart-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .cart-actions .btn { padding: 12px; font-size: 14px; border-radius: 12px; }
-/* Golden Border on Desktop Checkout Too */
 .cart-actions .btn-success { grid-column: span 2; padding: 16px; font-size: 16px; text-transform: uppercase; border-radius: 16px; border: 2px solid var(--accent); box-shadow: 0 0 10px rgba(198, 124, 78, 0.3);}
 
 .close-drawer-btn { display: none; background: var(--bg-body); border: none; border-radius: 50%; width: 36px; height: 36px; font-size: 16px; font-weight: bold; color: var(--text-dark); align-items: center; justify-content: center; }
@@ -199,10 +191,11 @@ input:focus, select:focus { outline: none; }
     
     .pos-right { position: fixed; bottom: -120%; left: 0; width: 100%; height: 85vh; z-index: 2000; border-radius: 30px 30px 0 0; max-width: 100%; }
     .pos-right.open { bottom: 0; box-shadow: 0 -15px 50px rgba(0,0,0,0.4); }
+    .drawer-handle { display: block; width: 40px; height: 5px; background: var(--border); border-radius: 10px; margin: 12px auto 0; }
     .close-drawer-btn { display: flex; }
     
     .desktop-actions .btn:not(.btn-success) { display: none; }
-    .desktop-actions { display: flex; }
+    .desktop-actions { display: flex; padding-bottom: max(20px, env(safe-area-inset-bottom)); }
     .desktop-actions .btn-success { width: 100%; padding: 18px; border-radius: 16px; font-size: 18px; border: 2px solid var(--accent); }
     #pos.view.active { overflow-y: auto; }
     .desktop-only { display: none; }
@@ -210,7 +203,6 @@ input:focus, select:focus { outline: none; }
 
 @media screen and (max-width: 768px) {
     body { flex-direction: column; }
-    /* Bottom Navigation Bar */
     .sidebar { width: 100%; height: auto; flex-direction: row; justify-content: space-around; padding: 10px 5px; position: fixed; bottom: 0; left: 0; z-index: 3000; padding-bottom: max(10px, env(safe-area-inset-bottom)); box-shadow: 0 -5px 20px rgba(0,0,0,0.1); background: var(--bg-surface); }
     .sidebar-brand { display: none; } 
     .nav-btn { flex-direction: column; padding: 8px 4px; font-size: 10px; gap: 4px; text-align: center; border-radius: 12px; margin-bottom: 0; flex: 1; justify-content: center; color: var(--text-muted); }
@@ -225,18 +217,18 @@ input:focus, select:focus { outline: none; }
     .topbar-date { font-size: 11px; padding: 4px 12px; }
     .card > div[style*="display: grid"] { grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)) !important; }
 
-    /* Compact Premium Menu Grid */
+    /* Compact Mobile Grid */
     .menu-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 12px; } 
     .menu-card { padding: 12px; }
     .menu-card .name { font-size: 12px; }
     .menu-card .price { font-size: 15px; }
 
-    /* ✨ EXACT FLOATING BOTTOM CART MAGIC (WITH GOLDEN BORDER) ✨ */
+    /* ✨ EXACT FLOATING BOTTOM CART MAGIC (WITH SAFE AREA) ✨ */
     .mobile-pos-actions {
         display: flex;
         flex-direction: column;
         position: fixed;
-        bottom: 70px; /* Above bottom nav */
+        bottom: calc(65px + env(safe-area-inset-bottom)); 
         left: 0;
         width: 100%;
         padding: 10px 15px;
@@ -254,50 +246,37 @@ input:focus, select:focus { outline: none; }
         justify-content: space-between;
         align-items: center;
         padding: 10px 20px;
-        border: 1.5px solid var(--accent); /* THE GOLDEN CHECKOUT BORDER */
+        border: 1.5px solid var(--accent);
         box-shadow: 0 10px 25px rgba(75, 46, 43, 0.4);
         margin-bottom: 12px;
         cursor: pointer;
     }
     .fc-left { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.9); }
     .fc-divider { width: 1px; height: 20px; background: rgba(255,255,255,0.2); margin: 0 15px; }
-    .fc-center { font-size: 18px; font-weight: 800; color: #fff; } /* Forced white text */
-    .fc-right { 
-        font-weight: 700; 
-        font-size: 15px; 
-        margin-left: auto; 
-        color: #fff; 
-        border: 1px solid rgba(255,255,255,0.2); /* Added subtle button ring inside pill */
-        padding: 6px 12px;
-        border-radius: 20px;
-    }
+    .fc-center { font-size: 18px; font-weight: 800; color: #fff; } 
+    .fc-right { font-weight: 700; font-size: 15px; margin-left: auto; color: #fff; border: 1px solid rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 20px; }
 
-    /* Mini Action Buttons below cart */
     .mini-actions { display: flex; gap: 8px; }
     .mini-actions .btn {
-        flex: 1;
-        padding: 10px 2px;
-        font-size: 11px;
-        border-radius: 12px;
-        background: var(--bg-surface);
-        border: none;
-        color: var(--primary);
-        font-weight: 700;
-        box-shadow: var(--shadow-sm);
-        display: flex; flex-direction: column; gap: 4px;
+        flex: 1; padding: 10px 2px; font-size: 11px; border-radius: 12px; background: var(--bg-surface); border: none; color: var(--primary); font-weight: 700; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 4px;
     }
-    .mini-actions .btn-view-order { background: var(--bg-surface); color: var(--accent); }
+    .mini-actions .btn-view-order { background: var(--bg-surface); color: var(--accent); border: 1px solid var(--border); }
 }
 @media screen and (max-width: 380px) {
     .nav-text { display: none; } 
     .nav-btn span.icon { font-size: 24px; }
     .menu-grid { grid-template-columns: repeat(auto-fill, minmax(95px, 1fr)); }
 }
+
+/* ✨ ROBUST MOBILE PRINT LOGIC ✨ */
+body.printing .main-wrapper, body.printing .sidebar, body.printing .modal-overlay, body.printing .mobile-pos-actions, body.printing #toast-container { display: none !important; }
+body.printing { background: #fff !important; }
+
 @media print {
     @page { margin: 0; size: auto; } 
     body { background: #fff; margin: 0; padding: 0; }
     .sidebar, .main-wrapper, .modal-overlay, #toast-container, .mobile-pos-actions { display: none !important; }
-    #print-receipt, #print-kot { width: 100%; max-width: 100%; padding: 2mm; margin: 0; font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; box-sizing: border-box; }
+    #print-receipt, #print-kot { width: 100%; max-width: 100%; padding: 2mm; margin: 0; font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; box-sizing: border-box; display: block !important; }
     .print-center { text-align: center; } 
     .print-row { display: flex; justify-content: space-between; margin-bottom: 5px; align-items: flex-start; width: 100%; }
     .print-row span:first-child { flex: 1; text-align: left; padding-right: 10px; word-wrap: break-word; overflow-wrap: break-word; line-height: 1.2;}
