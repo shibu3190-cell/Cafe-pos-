@@ -713,28 +713,53 @@ async function getLogoBytes(base64Image) {
 let bleDevice = null; let bleServer = null; let printCharacteristic = null;
 
 async function connectBluetoothPrinter() {
-    if (!navigator.bluetooth) return alert("Web Bluetooth is not supported on this browser (Try Chrome on Android/PC).");
+    const btn = document.getElementById('btnBleStatus');
+    const originalText = btn.innerHTML;
+
+    if (!navigator.bluetooth) {
+        showToast("❌ Bluetooth API not supported on this browser.");
+        alert("Web Bluetooth requires Chrome on Android, Windows, or Mac. It is blocked by Apple on iOS Safari.");
+        return;
+    }
+    
+    btn.innerHTML = "⏳ Searching...";
+
     try {
         showToast("Searching for Bluetooth printers...");
-        bleDevice = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb', 'e7810a71-73ae-499d-8c15-faa9aef0c3f2', '49535343-fe7d-4ae5-8fa9-9fafd205e455'] });
+        
+        // We added '0000fee7' as it is a highly common generic Chinese thermal printer UUID
+        bleDevice = await navigator.bluetooth.requestDevice({ 
+            acceptAllDevices: true, 
+            optionalServices: [
+                '000018f0-0000-1000-8000-00805f9b34fb', 
+                'e7810a71-73ae-499d-8c15-faa9aef0c3f2', 
+                '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+                '0000fee7-0000-1000-8000-00805f9b34fb' 
+            ] 
+        });
+        
+        showToast("Device selected. Connecting to GATT server...");
+        
         bleDevice.addEventListener('gattserverdisconnected', () => { 
             showToast("⚠️ Printer Disconnected."); 
             printCharacteristic = null; 
-            const btn = document.getElementById('btnBleStatus');
             btn.innerHTML = "📡 Pair BLE Printer"; 
             btn.style.background = "transparent";
             btn.style.color = "var(--accent)";
             btn.style.borderColor = "var(--accent)";
         });
+
         bleServer = await bleDevice.gatt.connect();
+        showToast("GATT Connected. Finding print services...");
+
         const services = await bleServer.getPrimaryServices();
+
         for (let service of services) {
             const characteristics = await service.getCharacteristics();
             for (let characteristic of characteristics) {
                 if (characteristic.properties.write || characteristic.properties.writeWithoutResponse) {
                     printCharacteristic = characteristic; 
                     showToast("🖨️ Printer Connected Successfully!"); 
-                    const btn = document.getElementById('btnBleStatus');
                     btn.innerHTML = "✅ Printer Connected"; 
                     btn.style.background = "var(--success)";
                     btn.style.color = "#fff";
@@ -743,8 +768,28 @@ async function connectBluetoothPrinter() {
                 }
             }
         }
-        showToast("❌ Could not find a valid print service.");
-    } catch (error) { console.error(error); showToast("Bluetooth Connection Cancelled/Failed."); }
+        
+        showToast("❌ Printer paired, but it does not support standard text printing.");
+        btn.innerHTML = originalText;
+        bleDevice.gatt.disconnect();
+
+    } catch (error) { 
+        console.error(error); 
+        
+        // Tells you exactly why it failed
+        if(error.name === 'NotFoundError') {
+            showToast("❌ Pairing cancelled by user.");
+        } else if (error.name === 'SecurityError' || error.message.includes('secure context')) {
+            showToast("❌ Security Error: Web Bluetooth requires HTTPS.");
+            alert("Web Bluetooth requires a secure HTTPS connection. It will not work on HTTP.");
+        } else if (error.name === 'NetworkError') {
+            showToast("❌ Network Error: Make sure the printer is turned on and close by.");
+        } else {
+            showToast("❌ Bluetooth Error: " + error.message); 
+        }
+        
+        btn.innerHTML = originalText;
+    }
 }
 
 async function sendEscPosToPrinter(order) {
