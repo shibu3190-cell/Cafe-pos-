@@ -87,7 +87,6 @@ function updateAllUI() {
     document.getElementById('openAiKeyInput').value = shopProfile.openAiKey || '';
 }
 
-// ✨ DB RACE CONDITION FIX ✨
 window.addEventListener('firebaseLoaded', () => {
     if(!navigator.onLine) return; 
     const dataRef = window.firebaseRef(window.firebaseDB, `clients/${myClientID}`);
@@ -114,7 +113,6 @@ function persistMenu() { saveToLocal(); if(navigator.onLine && window.firebaseSe
 function persistCategories() { saveToLocal(); if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/categories`), menuCategories); }
 function persistProfile() { saveToLocal(); if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/profile`), shopProfile); }
 
-// Update securely instead of overwriting
 function persistHistoryFirebase(newOrder = null) { 
     saveToLocal(); 
     if(!navigator.onLine) return;
@@ -235,7 +233,6 @@ function deleteCategory(cat) {
 
 function filterMenu(category) { activeCategory = category; renderCategoryFilters(); renderMenuUI(); }
 
-// ✨ SURGICAL TABLE RENDERING ✨
 function renderTables() {
     const grid = document.getElementById('tableGridUI'); grid.innerHTML = '';
     for(let i = 1; i <= shopProfile.tableCount; i++) {
@@ -291,9 +288,15 @@ function modifyQty(itemId, delta, event) {
     }
 }
 
-function clearTable() { if(confirm("Clear this entire order?")) { tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); syncTableUI(); updateCartUI(); syncMenuUIQuantities(); document.getElementById('cartDrawer').classList.remove('open'); } }
+function clearTable() { 
+    if(confirm("Clear this entire order?")) { 
+        tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; 
+        persistTables(); syncTableUI(); updateCartUI(); syncMenuUIQuantities(); 
+        document.getElementById('cartDrawer').classList.remove('open'); 
+        document.getElementById('cartDrawerOverlay').classList.remove('show');
+    } 
+}
 
-// ✨ SURGICAL MENU RENDERING ✨
 function renderMenuUI() {
     const posGrid = document.getElementById('menuGridUI'); posGrid.innerHTML = '';
     const searchText = (document.getElementById('menuSearchInput').value || '').toLowerCase();
@@ -579,13 +582,24 @@ function updateCartUI() {
         } else {
             fc.style.display = 'none';
             document.getElementById('cartDrawer').classList.remove('open');
+            document.getElementById('cartDrawerOverlay').classList.remove('show');
         }
     }
     
     cartDiv.scrollTop = cartDiv.scrollHeight;
 }
 
-function toggleCartDrawer() { document.getElementById('cartDrawer').classList.toggle('open'); }
+// ✨ MOBILE CART OVERLAY TOGGLE LOGIC ✨
+function toggleCartDrawer() { 
+    const drawer = document.getElementById('cartDrawer');
+    const overlay = document.getElementById('cartDrawerOverlay');
+    drawer.classList.toggle('open'); 
+    if (drawer.classList.contains('open')) {
+        overlay.classList.add('show');
+    } else {
+        overlay.classList.remove('show');
+    }
+}
 
 function markServed() { let tInfo = tablesInfo[activeTable]; if(tInfo.items.length === 0) return showToast("Table empty!"); tInfo.status = 'served'; tInfo.lastReminder = Date.now(); persistTables(); syncTableUI(); showToast(`Table ${activeTable} served. Timer started.`); }
 setInterval(() => { const now = Date.now(); let needsSync = false; for(let i = 1; i <= shopProfile.tableCount; i++) { let tInfo = tablesInfo[i]; if(tInfo.status === 'served' || tInfo.status === 'alert') { if(tInfo.lastReminder && (now - tInfo.lastReminder) >= ALERT_THRESHOLD_MS) { tInfo.status = 'alert'; tInfo.lastReminder = now; needsSync = true; showToast(`⚠️ Table ${i} unpaid!`); } } } if(needsSync) { persistTables(); syncTableUI(); } }, 5000); 
@@ -601,57 +615,32 @@ function openCheckoutModal() {
     document.getElementById('checkoutTotal').innerText = total.toFixed(2); document.getElementById('checkoutTableNoDisplay').innerText = activeTable; document.getElementById('checkoutTotalItems').innerText = tInfo.items.length;
     document.getElementById('checkoutOrderType').value = "Dine-In"; selectPayment('Cash', 'checkout');
     document.getElementById('checkoutCustomerName').value = ''; document.getElementById('checkoutBillerName').value = '';
+    
+    // Close Drawer securely if open
+    document.getElementById('cartDrawer').classList.remove('open');
+    document.getElementById('cartDrawerOverlay').classList.remove('show');
+    
     document.getElementById('checkoutModal').style.display = 'flex';
 }
 
-// ✨ BULLETPROOF PRINT PREVIEW FIX (INVISIBLE IFRAME) ✨
+// ✨ BULLETPROOF DOM-HIDING PRINT (FOR MOBILE RELIABILITY) ✨
 function executeHtmlPrint(divId) {
     return new Promise(resolve => {
-        let iframe = document.getElementById('print-iframe');
-        if (!iframe) {
-            iframe = document.createElement('iframe');
-            iframe.id = 'print-iframe';
-            iframe.style.position = 'fixed';
-            iframe.style.right = '0';
-            iframe.style.bottom = '0';
-            iframe.style.width = '0';
-            iframe.style.height = '0';
-            iframe.style.border = '0';
-            document.body.appendChild(iframe);
-        }
-        
-        const content = document.getElementById(divId).innerHTML;
-        const doc = iframe.contentWindow.document;
-        
-        doc.open();
-        doc.write(`
-            <html>
-            <head>
-                <title>Receipt Preview</title>
-                <style>
-                    body { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; margin: 0; padding: 10px; width: 300px; }
-                    .print-center { text-align: center; }
-                    .print-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
-                    .print-line { border-bottom: 1px dashed #000; margin: 8px 0; }
-                    img { max-width: 50px; filter: grayscale(100%) contrast(200%); margin-bottom: 5px; }
-                </style>
-            </head>
-            <body>
-                ${content}
-            </body>
-            </html>
-        `);
-        doc.close();
+        document.body.classList.add('printing');
+        document.getElementById(divId).style.display = 'block';
         
         setTimeout(() => {
-            iframe.contentWindow.focus();
-            iframe.contentWindow.print();
-            resolve();
-        }, 500);
+            window.print();
+            setTimeout(() => {
+                document.body.classList.remove('printing');
+                document.getElementById(divId).style.display = 'none';
+                resolve();
+            }, 500); 
+        }, 300);
     });
 }
 
-// ✨ 9. CHECKOUT ENGINE
+// ✨ 9. CHECKOUT ENGINE (SAVES DB *BEFORE* PRINTING) ✨
 async function confirmCheckout() {
     let tInfo = tablesInfo[activeTable]; 
     if(!tInfo || tInfo.items.length === 0) return showToast(`Table ${activeTable} is empty!`);
@@ -677,7 +666,7 @@ async function confirmCheckout() {
         persistMenu(); orderHistory.unshift(newOrder); persistHistoryFirebase(newOrder); 
         tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); 
         pushToGoogleSheetsQueue('addOrder', newOrder); syncTableUI(); updateCartUI(); syncMenuUIQuantities();
-        document.getElementById('cartDrawer').classList.remove('open');
+        
         showToast("✅ Payment recorded & Table cleared.");
 
         await sendEscPosToPrinter(newOrder);
@@ -728,14 +717,29 @@ async function connectBluetoothPrinter() {
     try {
         showToast("Searching for Bluetooth printers...");
         bleDevice = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb', 'e7810a71-73ae-499d-8c15-faa9aef0c3f2', '49535343-fe7d-4ae5-8fa9-9fafd205e455'] });
-        bleDevice.addEventListener('gattserverdisconnected', () => { showToast("⚠️ Printer Disconnected."); printCharacteristic = null; document.getElementById('btnBleStatus').innerHTML = "📡 Pair BLE Printer"; });
+        bleDevice.addEventListener('gattserverdisconnected', () => { 
+            showToast("⚠️ Printer Disconnected."); 
+            printCharacteristic = null; 
+            const btn = document.getElementById('btnBleStatus');
+            btn.innerHTML = "📡 Pair BLE Printer"; 
+            btn.style.background = "transparent";
+            btn.style.color = "var(--accent)";
+            btn.style.borderColor = "var(--accent)";
+        });
         bleServer = await bleDevice.gatt.connect();
         const services = await bleServer.getPrimaryServices();
         for (let service of services) {
             const characteristics = await service.getCharacteristics();
             for (let characteristic of characteristics) {
                 if (characteristic.properties.write || characteristic.properties.writeWithoutResponse) {
-                    printCharacteristic = characteristic; showToast("🖨️ Printer Connected Successfully!"); document.getElementById('btnBleStatus').innerHTML = "✅ Printer Connected"; return;
+                    printCharacteristic = characteristic; 
+                    showToast("🖨️ Printer Connected Successfully!"); 
+                    const btn = document.getElementById('btnBleStatus');
+                    btn.innerHTML = "✅ Printer Connected"; 
+                    btn.style.background = "var(--success)";
+                    btn.style.color = "#fff";
+                    btn.style.borderColor = "var(--success)";
+                    return;
                 }
             }
         }
@@ -862,13 +866,7 @@ async function sendEscPosToPrinter(order) {
     }
 
     const CHUNK_SIZE = 100; 
-    try { 
-        for (let i = 0; i < payload.length; i += CHUNK_SIZE) { 
-            const chunk = payload.slice(i, i + CHUNK_SIZE); 
-            await printCharacteristic.writeValue(chunk); 
-            await new Promise(resolve => setTimeout(resolve, 40)); 
-        } 
-    } catch(e) { console.error(e); showToast("❌ Print Failed. Printer might be off."); }
+    try { for (let i = 0; i < payload.length; i += CHUNK_SIZE) { const chunk = payload.slice(i, i + CHUNK_SIZE); await printCharacteristic.writeValue(chunk); await new Promise(resolve => setTimeout(resolve, 40)); } } catch(e) { console.error(e); showToast("❌ Print Failed. Printer might be off."); }
 }
 
 async function sendKotToPrinter(tableNo, items) {
