@@ -928,7 +928,24 @@ async function sendKotToPrinter(tableNo, items) {
     const encoder = new TextEncoder(); const payload = encoder.encode(kotText); const CHUNK_SIZE = 100; 
     try { for (let i = 0; i < payload.length; i += CHUNK_SIZE) { const chunk = payload.slice(i, i + CHUNK_SIZE); await printCharacteristic.writeValue(chunk); await new Promise(resolve => setTimeout(resolve, 40)); } } catch(e) { console.error(e); showToast("❌ KOT Print Failed."); }
 }
-
+// ✨ NOTIFICATION TOAST ENGINE (RESTORED) ✨
+function showToast(message) { 
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    
+    const toast = document.createElement('div'); 
+    toast.className = 'toast'; 
+    toast.innerHTML = `<span>🔔</span> ${message}`; 
+    container.appendChild(toast); 
+    
+    setTimeout(() => { 
+        toast.style.opacity = '0'; 
+        toast.style.transform = 'translateY(-10px)'; 
+        toast.style.transition = 'all 0.3s ease'; 
+        setTimeout(() => toast.remove(), 300); 
+    }, 3000); 
+}
+window.showToast = showToast;
 document.addEventListener('keydown', function(event) {
     if (event.key === 'Enter') {
         const activeId = document.activeElement.id;
