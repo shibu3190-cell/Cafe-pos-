@@ -87,7 +87,7 @@ function updateAllUI() {
     document.getElementById('openAiKeyInput').value = shopProfile.openAiKey || '';
 }
 
-// ✨ DB RACE CONDITION FIX: Update Logic ✨
+// ✨ DB RACE CONDITION FIX ✨
 window.addEventListener('firebaseLoaded', () => {
     if(!navigator.onLine) return; 
     const dataRef = window.firebaseRef(window.firebaseDB, `clients/${myClientID}`);
@@ -114,17 +114,24 @@ function persistMenu() { saveToLocal(); if(navigator.onLine && window.firebaseSe
 function persistCategories() { saveToLocal(); if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/categories`), menuCategories); }
 function persistProfile() { saveToLocal(); if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/profile`), shopProfile); }
 
-// Secure Appends
+// Update securely instead of overwriting
 function persistHistoryFirebase(newOrder = null) { 
-    saveToLocal(); if(!navigator.onLine) return;
-    if (newOrder && window.firebaseUpdate) { let updates = {}; updates[`clients/${myClientID}/history/${newOrder.id}`] = newOrder; window.firebaseUpdate(window.firebaseRef(window.firebaseDB), updates); } 
-    else if (window.firebaseSet) { let histObj = {}; orderHistory.forEach(o => histObj[o.id] = o); window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/history`), histObj); }
+    saveToLocal(); 
+    if(!navigator.onLine) return;
+    if (newOrder && window.firebaseUpdate) {
+        let updates = {}; updates[`clients/${myClientID}/history/${newOrder.id}`] = newOrder; window.firebaseUpdate(window.firebaseRef(window.firebaseDB), updates);
+    } else if (window.firebaseSet) {
+        let histObj = {}; orderHistory.forEach(o => histObj[o.id] = o); window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/history`), histObj);
+    }
 }
-
 function persistExpensesFirebase(newExp = null) { 
-    saveToLocal(); if(!navigator.onLine) return;
-    if (newExp && window.firebaseUpdate) { let updates = {}; updates[`clients/${myClientID}/expenses/${newExp.id}`] = newExp; window.firebaseUpdate(window.firebaseRef(window.firebaseDB), updates); } 
-    else if (window.firebaseSet) { let expObj = {}; dailyExpenses.forEach(e => expObj[e.id] = e); window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/expenses`), expObj); }
+    saveToLocal(); 
+    if(!navigator.onLine) return;
+    if (newExp && window.firebaseUpdate) {
+        let updates = {}; updates[`clients/${myClientID}/expenses/${newExp.id}`] = newExp; window.firebaseUpdate(window.firebaseRef(window.firebaseDB), updates);
+    } else if (window.firebaseSet) {
+        let expObj = {}; dailyExpenses.forEach(e => expObj[e.id] = e); window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/expenses`), expObj);
+    }
 }
 
 function updateConnectionStatus() {
@@ -228,16 +235,16 @@ function deleteCategory(cat) {
 
 function filterMenu(category) { activeCategory = category; renderCategoryFilters(); renderMenuUI(); }
 
-// ✨ 8. SURGICAL TABLE RENDERING ✨
+// ✨ SURGICAL TABLE RENDERING ✨
 function renderTables() {
     const grid = document.getElementById('tableGridUI'); grid.innerHTML = '';
     for(let i = 1; i <= shopProfile.tableCount; i++) {
         const tInfo = tablesInfo[i]; let classes = 'table-btn';
         if (tInfo.status !== 'empty') classes += ` ${tInfo.status}`;
         if (i === activeTable) classes += ' selected';
-        let amt = tInfo.items.length > 0 ? `<span class="amt">₹${tInfo.items.reduce((sum, item) => sum + (item.price * item.qty), 0).toFixed(2)}</span>` : (tInfo.status === 'booked' ? `<span class="amt">Rsrvd</span>` : "");
+        let amt = tInfo.items.length > 0 ? `₹${tInfo.items.reduce((sum, item) => sum + (item.price * item.qty), 0).toFixed(2)}` : (tInfo.status === 'booked' ? `Rsrvd` : "");
         
-        grid.innerHTML += `<div id="table-btn-${i}" class="${classes}" onclick="selectTable(${i})"><div class="table-status-dot"></div>T-${i}${amt}</div>`;
+        grid.innerHTML += `<div id="table-btn-${i}" class="${classes}" onclick="selectTable(${i})"><div class="table-status-dot"></div>T-${i}<span class="amt" id="table-amt-${i}">${amt}</span></div>`;
     }
 }
 
@@ -250,14 +257,11 @@ function syncTableUI() {
             if (tInfo.status !== 'empty') classes += ` ${tInfo.status}`;
             if (i === activeTable) classes += ' selected';
             if (tBtn.className !== classes) tBtn.className = classes;
-            
+        }
+        const amtSpan = document.getElementById(`table-amt-${i}`);
+        if(amtSpan) {
             let amt = tInfo.items.length > 0 ? `₹${tInfo.items.reduce((sum, item) => sum + (item.price * item.qty), 0).toFixed(2)}` : (tInfo.status === 'booked' ? `Rsrvd` : "");
-            const amtSpan = tBtn.querySelector('.amt');
-            if (amtSpan) {
-                if (amtSpan.innerText !== amt) amtSpan.innerText = amt;
-            } else if (amt !== "") {
-                tBtn.innerHTML += `<span class="amt">${amt}</span>`;
-            }
+            if (amtSpan.innerText !== amt) amtSpan.innerText = amt;
         }
     }
     document.getElementById('activeTableUI').innerText = activeTable;
@@ -306,14 +310,13 @@ function renderMenuUI() {
 
         posGrid.innerHTML += `
         <div class="menu-card" onclick="addToCart(${item.id}, event)">
-            ${popularBadge} ${stockBadge}
+            ${popularBadge}${stockBadge}
             <div class="cat-label">${item.category}</div>
             <div class="name">${item.name}</div>
             <div class="price">₹${item.price.toFixed(2)}</div>
             <div id="menu-action-wrap-${item.id}"></div>
         </div>`;
     });
-    
     syncMenuUIQuantities(); 
     document.getElementById('menuTableBody').innerHTML = menuItems.map(item => `<tr><td style="font-weight: 600; color: var(--text-dark);">${item.name}</td><td>${item.category}</td><td style="color: var(--accent); font-weight: 800;">₹${item.price.toFixed(2)}</td><td>${item.gstRate}%</td><td><strong style="color: ${item.trackStock && item.stockQty <= 5 ? 'var(--danger)' : 'inherit'};">${item.trackStock ? item.stockQty : '∞'}</strong></td><td><button class="btn btn-outline" style="padding: 6px 10px; font-size: 13px;" onclick="editMenuItem(${item.id})">Edit</button><button class="btn btn-danger" style="padding: 6px 10px; font-size: 13px;" onclick="deleteMenuItem(${item.id})">Del</button></td></tr>`).join('');
 }
@@ -323,21 +326,16 @@ function syncMenuUIQuantities() {
     menuItems.forEach(item => {
         const wrapper = document.getElementById(`menu-action-wrap-${item.id}`);
         if(!wrapper) return;
-        
-        let qtyInCart = 0;
-        const existing = currentCart.find(i => i.id === item.id);
-        if(existing) qtyInCart = existing.qty;
+        let qtyInCart = 0; const existing = currentCart.find(i => i.id === item.id); if(existing) qtyInCart = existing.qty;
 
         let buttonHtml = '';
-        if (item.trackStock && item.stockQty <= 0) { buttonHtml = `<div class="out-stock-btn">Out of Stock</div>`; } 
-        else if (qtyInCart > 0) {
+        if (item.trackStock && item.stockQty <= 0) {
+            buttonHtml = `<div class="out-stock-btn">Out of Stock</div>`;
+        } else if (qtyInCart > 0) {
             buttonHtml = `<div class="item-qty-control" onclick="event.stopPropagation()"><button onclick="modifyQty(${item.id}, -1, event)">−</button><span>${qtyInCart}</span><button onclick="addToCart(${item.id}, event)">+</button></div>`;
-        } 
-        else if (item.trackStock && item.stockQty > 5) {
-            buttonHtml = `<div class="in-stock-btn"><span style="color:var(--success);">✔</span> In Stock</div>`;
+        } else {
+            buttonHtml = `<button class="add-btn" onclick="addToCart(${item.id}, event)">+ Add</button>`;
         }
-        else { buttonHtml = `<button class="add-btn" onclick="addToCart(${item.id}, event)">+ Add</button>`; }
-        
         if (wrapper.innerHTML !== buttonHtml) { wrapper.innerHTML = buttonHtml; }
     });
 }
@@ -606,44 +604,54 @@ function openCheckoutModal() {
     document.getElementById('checkoutModal').style.display = 'flex';
 }
 
-// ✨ ROBUST FALLBACK PRINT ENGINE (Downloads PDF cleanly on Windows/Mobile) ✨
+// ✨ BULLETPROOF PRINT PREVIEW FIX (INVISIBLE IFRAME) ✨
 function executeHtmlPrint(divId) {
-    const printContent = document.getElementById(divId).innerHTML;
-    // Open a new isolated window to prevent freezing the main app DOM
-    const printWindow = window.open('', '_blank', 'width=800,height=600');
-    if(!printWindow) return showToast("⚠️ Popup blocked! Please allow popups to print/download PDF.");
-    
-    printWindow.document.write(`
-        <html>
-        <head>
-            <title>Print Receipt</title>
-            <style>
-                body { font-family: monospace; font-size: 14px; padding: 20px; color: #000; margin: 0; }
-                .print-center { text-align: center; } 
-                .print-row { display: flex; justify-content: space-between; margin-bottom: 5px; align-items: flex-start; width: 100%; }
-                .print-row span:first-child { flex: 1; text-align: left; padding-right: 10px; word-wrap: break-word; overflow-wrap: break-word; line-height: 1.2;}
-                .print-row span:last-child { white-space: nowrap; text-align: right; font-weight: bold; }
-                .print-line { border-bottom: 1px dashed #000; margin: 10px 0; width: 100%; }
-                img { max-width: 60px; max-height: 60px; margin: 0 auto 10px auto; object-fit: contain; filter: grayscale(100%) contrast(200%); display:block; }
-                .print-meta { font-size: 12px; margin: 3px 0; color: #000; }
-                h2 { margin: 0 0 10px 0; font-size: 20px; }
-            </style>
-        </head>
-        <body>${printContent}</body>
-        </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    
-    // Slight delay to ensure fonts/images load before throwing print dialog
-    setTimeout(() => {
-        printWindow.print();
-        // Optional: Auto close window after print dialog closes
-        // printWindow.close(); 
-    }, 500);
+    return new Promise(resolve => {
+        let iframe = document.getElementById('print-iframe');
+        if (!iframe) {
+            iframe = document.createElement('iframe');
+            iframe.id = 'print-iframe';
+            iframe.style.position = 'fixed';
+            iframe.style.right = '0';
+            iframe.style.bottom = '0';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            iframe.style.border = '0';
+            document.body.appendChild(iframe);
+        }
+        
+        const content = document.getElementById(divId).innerHTML;
+        const doc = iframe.contentWindow.document;
+        
+        doc.open();
+        doc.write(`
+            <html>
+            <head>
+                <title>Receipt Preview</title>
+                <style>
+                    body { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; margin: 0; padding: 10px; width: 300px; }
+                    .print-center { text-align: center; }
+                    .print-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+                    .print-line { border-bottom: 1px dashed #000; margin: 8px 0; }
+                    img { max-width: 50px; filter: grayscale(100%) contrast(200%); margin-bottom: 5px; }
+                </style>
+            </head>
+            <body>
+                ${content}
+            </body>
+            </html>
+        `);
+        doc.close();
+        
+        setTimeout(() => {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+            resolve();
+        }, 500);
+    });
 }
 
-// ✨ 9. CHECKOUT ENGINE (SAVES DB *BEFORE* PRINTING) ✨
+// ✨ 9. CHECKOUT ENGINE
 async function confirmCheckout() {
     let tInfo = tablesInfo[activeTable]; 
     if(!tInfo || tInfo.items.length === 0) return showToast(`Table ${activeTable} is empty!`);
@@ -665,7 +673,6 @@ async function confirmCheckout() {
 
         const newOrder = { id: Date.now(), billNo: generatedBillNo, date: fullDateStr, filterDate: safeFilterDate, table: finalTableStr, orderType: oType, paymentMode: pMode, customer: cName, biller: bName, items: itemNames, rawItems: JSON.parse(JSON.stringify(tInfo.items)), amount: total };
         
-        // 🌟 CRITICAL FIX: Save EVERYTHING to the database first!
         tInfo.items.forEach(cartItem => { const mItem = menuItems.find(m => m.id === cartItem.id); if (mItem && mItem.trackStock) { mItem.stockQty -= cartItem.qty; if (mItem.stockQty < 0) mItem.stockQty = 0; } });
         persistMenu(); orderHistory.unshift(newOrder); persistHistoryFirebase(newOrder); 
         tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); 
@@ -673,7 +680,6 @@ async function confirmCheckout() {
         document.getElementById('cartDrawer').classList.remove('open');
         showToast("✅ Payment recorded & Table cleared.");
 
-        // 🌟 THEN attempt to print
         await sendEscPosToPrinter(newOrder);
 
     } catch (e) { console.error(e); showToast("❌ Error processing checkout."); } 
@@ -780,7 +786,7 @@ async function sendEscPosToPrinter(order) {
 
         document.getElementById('printTotal').innerText = `₹${order.amount.toFixed(2)}`;
         
-        executeHtmlPrint('print-receipt');
+        await executeHtmlPrint('print-receipt');
         return;
     }
 
@@ -870,7 +876,8 @@ async function sendKotToPrinter(tableNo, items) {
         document.getElementById('printKotTableNo').innerText = tableNo; document.getElementById('printKotTime').innerText = new Date().toLocaleTimeString();
         let itemsHtml = ''; items.forEach(item => { itemsHtml += `<div style="display:flex; justify-content:space-between; margin-bottom: 8px; border-bottom: 1px dashed #ccc; padding-bottom: 4px;"><span>${item.name}</span><span style="font-size:18px;">x${item.qty}</span></div>`; });
         document.getElementById('printKotItems').innerHTML = itemsHtml;
-        executeHtmlPrint('print-kot');
+        
+        await executeHtmlPrint('print-kot');
         return;
     }
 
@@ -880,13 +887,7 @@ async function sendKotToPrinter(tableNo, items) {
     items.forEach(item => { kotText += DOUBLE_SIZE + `${item.qty}x ${item.name}\n` + NORMAL_SIZE; kotText += "--------------------------------\n"; });
     kotText += ALIGN_CENTER + "*** END OF KOT ***\n" + FEED_AND_CUT;
     const encoder = new TextEncoder(); const payload = encoder.encode(kotText); const CHUNK_SIZE = 100; 
-    try { 
-        for (let i = 0; i < payload.length; i += CHUNK_SIZE) { 
-            const chunk = payload.slice(i, i + CHUNK_SIZE); 
-            await printCharacteristic.writeValue(chunk); 
-            await new Promise(resolve => setTimeout(resolve, 40)); 
-        } 
-    } catch(e) { console.error(e); showToast("❌ KOT Print Failed."); }
+    try { for (let i = 0; i < payload.length; i += CHUNK_SIZE) { const chunk = payload.slice(i, i + CHUNK_SIZE); await printCharacteristic.writeValue(chunk); await new Promise(resolve => setTimeout(resolve, 40)); } } catch(e) { console.error(e); showToast("❌ KOT Print Failed."); }
 }
 
 document.addEventListener('keydown', function(event) {
