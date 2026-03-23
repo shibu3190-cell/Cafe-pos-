@@ -716,19 +716,24 @@ async function connectBluetoothPrinter() {
     const btn = document.getElementById('btnBleStatus');
     const originalText = btn.innerHTML;
 
-    if (!navigator.bluetooth) {
-        showToast("❌ Bluetooth API not supported on this browser.");
-        alert("Web Bluetooth requires Chrome on Android, Windows, or Mac. It is blocked by Apple on iOS Safari.");
-        return;
-    }
-    
-    btn.innerHTML = "⏳ Searching...";
-
     try {
-        showToast("Searching for Bluetooth printers...");
-        
-        // We added '0000fee7' as it is a highly common generic Chinese thermal printer UUID
-        bleDevice = await navigator.bluetooth.requestDevice({ 
+        // 1. Check if the browser supports Bluetooth (Catches iPhones)
+        if (!navigator.bluetooth) {
+            alert("❌ BLUETOOTH NOT SUPPORTED!\n\nApple iOS (iPhone/iPad) blocks Web Bluetooth. You must use Android Chrome, Windows Chrome, or Mac Chrome.");
+            return;
+        }
+
+        // 2. Check if the site is secure (Catches local file:// testing)
+        if (!window.isSecureContext) {
+            alert("❌ INSECURE CONNECTION!\n\nWeb Bluetooth ONLY works on 'https://' websites. It is blocking your click because you are on a local or unencrypted connection. Please deploy to Netlify/Vercel.");
+            return;
+        }
+
+        btn.innerHTML = "⏳ Searching...";
+        showToast("Looking for printers...");
+
+        // 3. Request the device (Added 0000fee7 for generic POS-58 printers)
+        let bleDevice = await navigator.bluetooth.requestDevice({ 
             acceptAllDevices: true, 
             optionalServices: [
                 '000018f0-0000-1000-8000-00805f9b34fb', 
@@ -738,20 +743,15 @@ async function connectBluetoothPrinter() {
             ] 
         });
         
-        showToast("Device selected. Connecting to GATT server...");
-        
         bleDevice.addEventListener('gattserverdisconnected', () => { 
-            showToast("⚠️ Printer Disconnected."); 
+            alert("⚠️ Printer Disconnected!"); 
             printCharacteristic = null; 
             btn.innerHTML = "📡 Pair BLE Printer"; 
             btn.style.background = "transparent";
             btn.style.color = "var(--accent)";
-            btn.style.borderColor = "var(--accent)";
         });
 
-        bleServer = await bleDevice.gatt.connect();
-        showToast("GATT Connected. Finding print services...");
-
+        let bleServer = await bleDevice.gatt.connect();
         const services = await bleServer.getPrimaryServices();
 
         for (let service of services) {
@@ -760,38 +760,34 @@ async function connectBluetoothPrinter() {
                 if (characteristic.properties.write || characteristic.properties.writeWithoutResponse) {
                     printCharacteristic = characteristic; 
                     showToast("🖨️ Printer Connected Successfully!"); 
-                    btn.innerHTML = "✅ Printer Connected"; 
+                    btn.innerHTML = "✅ Connected"; 
                     btn.style.background = "var(--success)";
                     btn.style.color = "#fff";
-                    btn.style.borderColor = "var(--success)";
                     return;
                 }
             }
         }
         
-        showToast("❌ Printer paired, but it does not support standard text printing.");
+        alert("❌ Printer paired, but it does not support standard text printing.");
         btn.innerHTML = originalText;
         bleDevice.gatt.disconnect();
 
     } catch (error) { 
         console.error(error); 
+        btn.innerHTML = originalText;
         
-        // Tells you exactly why it failed
+        // 4. Exact Error Diagnosis
         if(error.name === 'NotFoundError') {
             showToast("❌ Pairing cancelled by user.");
-        } else if (error.name === 'SecurityError' || error.message.includes('secure context')) {
-            showToast("❌ Security Error: Web Bluetooth requires HTTPS.");
-            alert("Web Bluetooth requires a secure HTTPS connection. It will not work on HTTP.");
-        } else if (error.name === 'NetworkError') {
-            showToast("❌ Network Error: Make sure the printer is turned on and close by.");
+        } else if (error.name === 'SecurityError') {
+            alert("❌ SECURITY ERROR: Browser blocked Bluetooth access. Make sure you are using HTTPS.");
+        } else if (error.name === 'NotAllowedError') {
+            alert("❌ PERMISSION DENIED: Make sure you granted Bluetooth/Nearby Devices permissions to your browser in your phone settings.");
         } else {
-            showToast("❌ Bluetooth Error: " + error.message); 
+            alert("❌ BLUETOOTH ERROR:\n" + error.message); 
         }
-        
-        btn.innerHTML = originalText;
     }
 }
-
 async function sendEscPosToPrinter(order) {
     let gstSummary = {}; 
 
