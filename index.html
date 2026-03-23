@@ -8,8 +8,9 @@
     <title>The Bong Bhoj Terminal</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#3D261D">
+    <meta name="theme-color" content="#4B2E2B">
     <link rel="apple-touch-icon" href="icon-192.png">
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -208,10 +209,8 @@
                         
                         <div class="menu-wrapper">
                             <div class="search-container">
-                                <span class="search-icon">🔍</span>
+                                <span>🔍</span>
                                 <input type="text" id="menuSearchInput" class="search-bar" placeholder="Search menu items..." onkeyup="renderMenuUI()">
-                                <span class="mic-icon">🎤</span>
-                                <span class="refresh-icon" onclick="renderMenuUI()">🔄</span>
                             </div>
                             <div class="category-scroll" id="categoryFiltersUI"></div>
                             <div class="menu-grid" id="menuGridUI"></div>
@@ -260,7 +259,7 @@
                         <button class="btn" onclick="bookTable()">📅 Reserve</button>
                         <button class="btn btn-warning" style="background: #E6E1D8; color: var(--primary); border: 1px solid var(--border);" onclick="sendToKitchen()">👨‍🍳 Kitchen</button>
                         <button class="btn" style="background: #E8E0D5; color: var(--text-dark); border: 1px solid var(--border);" onclick="markServed()">🍽️ Served</button>
-                        <button class="btn btn-view-order" style="background: var(--bg-surface); color: var(--text-dark); border: 1px solid var(--border);" onclick="toggleCartDrawer()">🛒 View</button>
+                        <button class="btn btn-view-order" style="background: var(--bg-surface); color: var(--accent); border: 1px solid var(--border);" onclick="toggleCartDrawer()">🛒 View</button>
                     </div>
                 </div>
             </div>
@@ -389,8 +388,40 @@
         </div>
     </div>
 
-    <div id="print-receipt" style="display: none;"></div>
-    <div id="print-kot" style="display: none;"></div>
+    <div id="print-receipt" style="display: none;">
+        <div class="print-center">
+            <img id="printLogo" src="" alt="Logo">
+            <h2 id="printShopName" style="margin: 0;"></h2>
+            <p id="printShopAddress" style="margin: 5px 0; font-size: 12px;"></p>
+            <p id="printFssai" style="margin: 0; font-size: 11px; color: #444;"></p>
+            <p id="printGstin" style="margin: 0; font-size: 11px; color: #444;"></p>
+            <div class="print-line"></div>
+            <p style="font-size: 16px; font-weight: bold; margin: 5px 0;">Invoice: #<span id="printBillNo"></span></p>
+            <p style="font-size: 14px; margin: 2px 0;" id="printTableNoRow">Table: <span id="printTableNo"></span></p>
+            <p id="printDate" class="print-meta"></p>
+            <p class="print-meta">Type: <span id="printOrderType"></span></p>
+            <p class="print-meta">Payment: <span id="printPayMode"></span></p>
+            <p class="print-meta" id="printCustomerRow" style="display:none;">Customer: <span id="printCustomer"></span></p>
+            <p class="print-meta" id="printBillerRow" style="display:none;">Biller: <span id="printBiller"></span></p>
+            <div class="print-line"></div>
+        </div>
+        <div id="printItems"></div>
+        <div class="print-line"></div>
+        <div class="print-row" style="font-weight: bold; font-size: 16px;"><span>GRAND TOTAL</span><span id="printTotal"></span></div>
+        <div class="print-center" style="margin-top: 20px;"><p>Thank You!</p></div>
+    </div>
+
+    <div id="print-kot" style="display: none;">
+        <div class="print-center">
+            <h2 style="margin: 0; border-bottom: 2px dashed #000; padding-bottom: 5px;">KITCHEN TICKET</h2>
+            <h1 style="margin: 10px 0; font-size: 28px;">TABLE: <span id="printKotTableNo"></span></h1>
+            <p style="margin: 0; font-weight: bold;">Time: <span id="printKotTime"></span></p>
+            <div class="print-line" style="border-bottom: 2px solid #000;"></div>
+        </div>
+        <div id="printKotItems" style="font-size: 16px; font-weight: bold; margin-top: 15px;"></div>
+        <div class="print-line" style="border-bottom: 2px solid #000; margin-top: 15px;"></div>
+        <div class="print-center" style="margin-top: 10px;"><p>*** END OF KOT ***</p></div>
+    </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
@@ -419,6 +450,6 @@
         caches.keys().then(function(names) { for (let name of names) caches.delete(name); });
     </script>
     
-    <script src="app.js?v=1015"></script>
+    <script src="app.js?v=1011"></script>
 </body>
 </html>
