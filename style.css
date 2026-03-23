@@ -34,6 +34,10 @@ input:focus, select:focus { outline: none; }
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000000; display: none; justify-content: center; align-items: center; flex-direction: column; background: rgba(43, 29, 22, 0.95); backdrop-filter: blur(5px); }
 .auth-box, .modal-box { background: var(--bg-surface); padding: 40px; border-radius: var(--radius-lg); width: 90%; max-width: 400px; text-align: center; box-shadow: var(--shadow-lg); border: 1px solid var(--border); max-height: 90vh; overflow-y: auto; }
 .auth-box h2 { color: var(--primary); margin-bottom: 20px; font-weight: 800; }
+
+/* ✨ CHECKOUT HUGE TOTAL ✨ */
+.huge-total { font-size: 38px; font-weight: 800; color: var(--accent); text-align: center; margin: 15px 0; letter-spacing: -1px; }
+
 .key-input, .pin-input { width: 100%; padding: 15px; font-size: 20px; text-align: center; letter-spacing: 2px; border: 2px solid var(--border); border-radius: var(--radius-md); margin-bottom: 20px; background: #fff; color: var(--text-dark); font-family: monospace; font-weight: 700; transition: 0.3s; }
 .key-input:focus, .pin-input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(198, 124, 78, 0.15); }
 .pin-input { letter-spacing: 15px; font-size: 24px; font-weight: bold; }
@@ -106,18 +110,7 @@ input:focus, select:focus { outline: none; }
 
 .menu-wrapper { display: flex; flex-direction: column; gap: 15px; flex: 1; min-height: 0; }
 
-/* ✨ WINDOWS CATEGORY FIX ✨ */
-.category-scroll { 
-    display: flex; 
-    gap: 10px; 
-    overflow-x: auto; 
-    padding-bottom: 8px; 
-    flex-shrink: 0; 
-    white-space: nowrap; 
-    flex-wrap: nowrap; 
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
-}
+.category-scroll { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; flex-shrink: 0; white-space: nowrap; flex-wrap: nowrap; -ms-overflow-style: none; scrollbar-width: none; }
 .category-scroll::-webkit-scrollbar { display: none; }
 
 .cat-chip { padding: 12px 24px; background: var(--bg-surface); border: none; border-radius: 30px; cursor: pointer; white-space: nowrap; font-size: 14px; font-weight: 700; color: var(--text-dark); transition: 0.2s; box-shadow: var(--shadow-sm); }
@@ -150,6 +143,7 @@ input:focus, select:focus { outline: none; }
 
 /* ✨ DESKTOP CART DRAWER ✨ */
 .pos-right { width: 38%; min-width: 380px; max-width: 500px; flex-shrink: 0; background: var(--bg-surface); border-radius: var(--radius-xl); box-shadow: var(--shadow-lg); display: flex; flex-direction: column; overflow: hidden; transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.drawer-overlay { display: none; } /* Used on Mobile */
 .drawer-handle { display: none; }
 .cart-header { padding: 20px; border-bottom: 1px solid var(--border); background: var(--bg-surface); }
 .cart-items-container { flex: 1; overflow-y: auto; padding: 15px; background: var(--bg-surface); display: flex; flex-direction: column; gap: 10px; }
@@ -205,6 +199,10 @@ input:focus, select:focus { outline: none; }
 @media screen and (max-width: 1024px) {
     .pos-layout { flex-direction: column; overflow-y: visible; overflow-x: hidden; display: block; }
     .pos-left { min-height: 50vh; overflow: visible; padding-right: 0; padding-bottom: 160px; }
+    
+    /* ✨ GLASS OVERLAY FOR CART DRAWER ✨ */
+    .drawer-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 4999; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
+    .drawer-overlay.show { opacity: 1; pointer-events: auto; }
     
     .pos-right { position: fixed; bottom: -120%; left: 0; width: 100%; height: 85vh; z-index: 5000; border-radius: 30px 30px 0 0; max-width: 100%; }
     .pos-right.open { bottom: 0; box-shadow: 0 -15px 50px rgba(0,0,0,0.4); }
@@ -281,4 +279,22 @@ input:focus, select:focus { outline: none; }
     .nav-text { display: none; } 
     .nav-btn span.icon { font-size: 24px; }
     .menu-grid { grid-template-columns: repeat(auto-fill, minmax(95px, 1fr)); }
+}
+
+/* ✨ ROBUST MOBILE PRINT LOGIC ✨ */
+body.printing .main-wrapper, body.printing .sidebar, body.printing .modal-overlay, body.printing .mobile-pos-actions, body.printing #toast-container { display: none !important; }
+body.printing { background: #fff !important; }
+
+@media print {
+    @page { margin: 0; size: auto; } 
+    body { background: #fff; margin: 0; padding: 0; }
+    .sidebar, .main-wrapper, .modal-overlay, #toast-container, .mobile-pos-actions { display: none !important; }
+    #print-receipt, #print-kot { width: 100%; max-width: 100%; padding: 2mm; margin: 0; font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; box-sizing: border-box; display: block !important; }
+    .print-center { text-align: center; } 
+    .print-row { display: flex; justify-content: space-between; margin-bottom: 5px; align-items: flex-start; width: 100%; }
+    .print-row span:first-child { flex: 1; text-align: left; padding-right: 10px; word-wrap: break-word; overflow-wrap: break-word; line-height: 1.2;}
+    .print-row span:last-child { white-space: nowrap; text-align: right; font-weight: bold; }
+    .print-line { border-bottom: 1px dashed #000; margin: 8px 0; width: 100%; }
+    #printLogo { max-width: 45px; max-height: 45px; margin: 0 auto 8px auto; object-fit: contain; filter: grayscale(100%) contrast(200%); }
+    .print-meta { font-size: 11px; margin: 2px 0; color: #000; }
 }
