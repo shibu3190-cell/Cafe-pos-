@@ -291,7 +291,6 @@ function modifyQty(itemId, delta, event) {
 
 function clearTable() { if(confirm("Clear this entire order?")) { tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); syncTableUI(); updateCartUI(); syncMenuUIQuantities(); document.getElementById('cartDrawer').classList.remove('open'); document.getElementById('cartDrawerOverlay').classList.remove('show'); } }
 
-// ✨ EXACT MENU HTML TO MATCH IMAGE 1 ✨
 function renderMenuUI() {
     const posGrid = document.getElementById('menuGridUI'); posGrid.innerHTML = '';
     const searchText = (document.getElementById('menuSearchInput').value || '').toLowerCase();
@@ -584,12 +583,33 @@ function toggleCartDrawer() {
     if (drawer.classList.contains('open')) overlay.classList.add('show'); else overlay.classList.remove('show');
 }
 
-function markServed() { let tInfo = tablesInfo[activeTable]; if(tInfo.items.length === 0) return showToast("Table empty!"); tInfo.status = 'served'; tInfo.lastReminder = Date.now(); persistTables(); syncTableUI(); showToast(`Table ${activeTable} served. Timer started.`); }
-setInterval(() => { const now = Date.now(); let needsSync = false; for(let i = 1; i <= shopProfile.tableCount; i++) { let tInfo = tablesInfo[i]; if(tInfo.status === 'served' || tInfo.status === 'alert') { if(tInfo.lastReminder && (now - tInfo.lastReminder) >= ALERT_THRESHOLD_MS) { tInfo.status = 'alert'; tInfo.lastReminder = now; needsSync = true; showToast(`⚠️ Table ${i} unpaid!`); } } } if(needsSync) { persistTables(); syncTableUI(); } }, 5000); 
+// ✨ AUTOMATIC TIMER LOGIC ✨
+function markServed() { 
+    let tInfo = tablesInfo[activeTable]; if(tInfo.items.length === 0) return showToast("Table empty!"); 
+    tInfo.status = 'served'; tInfo.lastReminder = Date.now(); persistTables(); syncTableUI(); 
+    document.getElementById('cartDrawer').classList.remove('open'); document.getElementById('cartDrawerOverlay').classList.remove('show');
+    showToast(`Table ${activeTable} served. Timer started.`); 
+}
+
+setInterval(() => { 
+    const now = Date.now(); let needsSync = false; 
+    for(let i = 1; i <= shopProfile.tableCount; i++) { 
+        let tInfo = tablesInfo[i]; 
+        if(tInfo.status === 'served' || tInfo.status === 'alert') { 
+            if(tInfo.lastReminder && (now - tInfo.lastReminder) >= ALERT_THRESHOLD_MS) { 
+                tInfo.status = 'alert'; tInfo.lastReminder = now; needsSync = true; showToast(`⚠️ Table ${i} unpaid!`); 
+            } 
+        } 
+    } 
+    if(needsSync) { persistTables(); syncTableUI(); } 
+}, 5000); 
 
 function sendToKitchen() { 
     let tInfo = tablesInfo[activeTable]; if(tInfo.items.length === 0) return showToast("Nothing to send!"); 
-    tInfo.status = 'saved'; persistTables(); syncTableUI(); document.getElementById('kotTableNoDisplay').innerText = activeTable; document.getElementById('kotModal').style.display = 'flex';
+    tInfo.status = 'saved'; persistTables(); syncTableUI(); 
+    document.getElementById('kotTableNoDisplay').innerText = activeTable; 
+    document.getElementById('cartDrawer').classList.remove('open'); document.getElementById('cartDrawerOverlay').classList.remove('show');
+    document.getElementById('kotModal').style.display = 'flex';
 }
 
 function selectPayment(mode, context) {
@@ -608,6 +628,7 @@ function openCheckoutModal() {
     document.getElementById('checkoutModal').style.display = 'flex';
 }
 
+// ✨ INVISIBLE IFRAME PRINT FALLBACK ✨
 function executeHtmlPrint(divId) {
     return new Promise(resolve => {
         let iframe = document.getElementById('print-iframe');
@@ -620,6 +641,7 @@ function executeHtmlPrint(divId) {
     });
 }
 
+// ✨ SECURE CHECKOUT ✨
 async function confirmCheckout() {
     let tInfo = tablesInfo[activeTable]; 
     if(!tInfo || tInfo.items.length === 0) return showToast(`Table ${activeTable} is empty!`);
@@ -654,6 +676,7 @@ async function confirmCheckout() {
     finally { payBtn.disabled = false; payBtn.innerText = "🖨️ Pay & Print"; }
 }
 
+// ✨ ADVANCED ESC/POS BLUETOOTH & HTML ENGINE ✨
 async function getLogoBytes(base64Image) {
     return new Promise((resolve) => {
         const img = new Image();
@@ -815,6 +838,16 @@ async function sendKotToPrinter(tableNo, items) {
     const encoder = new TextEncoder(); const payload = encoder.encode(kotText); const CHUNK_SIZE = 100; 
     try { for (let i = 0; i < payload.length; i += CHUNK_SIZE) { const chunk = payload.slice(i, i + CHUNK_SIZE); await printCharacteristic.writeValue(chunk); await new Promise(resolve => setTimeout(resolve, 40)); } } catch(e) { console.error(e); showToast("❌ KOT Print Failed."); }
 }
+
+async function printKitchenTicket() {
+    const btn = document.querySelector('#kotModal .btn-warning'); btn.disabled = true; btn.innerText = printCharacteristic ? "⏳ Printing KOT..." : "📄 Generating PDF KOT...";
+    let tInfo = tablesInfo[activeTable];
+    try { await sendKotToPrinter(activeTable, tInfo.items); document.getElementById('kotModal').style.display = 'none'; showToast(`👨‍🍳 Table ${activeTable} KOT Processed.`); } 
+    catch(e) { console.error(e); showToast("❌ KOT Error."); } finally { btn.disabled = false; btn.innerText = "🖨️ Print KOT"; }
+}
+
+function reprintReceipt(orderId) { const order = orderHistory.find(o => o.id === orderId); if (!order || !order.rawItems) return showToast("Cannot print old order details."); sendEscPosToPrinter(order); }
+function testThermalPrinter() { const dummyOrder = { billNo: 'TEST-999', date: new Date().toLocaleString(), orderType: 'Dine-In', paymentMode: 'Cash', amount: 270, rawItems: [ {name: "Standard Espresso", qty: 1, price: 80, gstRate: 5}, {name: "Water Bottle", qty: 2, price: 20, gstRate: 0} ] }; sendEscPosToPrinter(dummyOrder); }
 
 function showToast(message) { 
     const container = document.getElementById('toast-container'); if (!container) return;
