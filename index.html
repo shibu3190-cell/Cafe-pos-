@@ -8,7 +8,7 @@
     <title>The Bong Bhoj Terminal</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#4B2E2B">
+    <meta name="theme-color" content="#F4EFEA">
     <link rel="apple-touch-icon" href="icon-192.png">
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -232,7 +232,7 @@
                                 </div>
                                 <h2>₹<span id="totalUI">0</span></h2>
                             </div>
-                            <button class="btn btn-success btn-full" style="font-size: 18px; width: 100%; border-radius: 16px; padding: 18px;" onclick="openCheckoutModal()">💵 Checkout</button>
+                            <button class="btn btn-success btn-full" style="font-size: 18px; width: 100%; border-radius: 30px; padding: 18px; font-weight: 700;" onclick="openCheckoutModal()">CHECKOUT ➔</button>
                         </div>
                     </div>
                 </div>
@@ -240,10 +240,10 @@
                 <div class="mobile-pos-actions">
                     <div id="floatingCart" class="sleek-checkout-bar" style="display: none;">
                         <div class="sc-left" onclick="toggleCartDrawer()">
-                            <span class="icon">📋</span> <span id="fc-count">0 ITEMS</span>
+                            <span class="icon">🛒</span> <span id="fc-count">0 ITEMS</span>
                         </div>
                         <div class="sc-center" onclick="toggleCartDrawer()">
-                            ₹ <span id="fc-total">0</span>
+                            ₹<span id="fc-total">0</span>
                         </div>
                         <button class="sc-right" onclick="openCheckoutModal()">CHECKOUT ➔</button>
                     </div>
@@ -360,7 +360,7 @@
                     </div>
 
                     <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-                        <button class="btn" style="flex: 2; min-width: 200px; padding: 18px; font-size: 16px; border-radius: 16px;" onclick="saveSettings()">Save All Settings</button>
+                        <button class="btn" style="flex: 2; min-width: 200px; padding: 18px; font-size: 16px; background: var(--primary); border-radius: 16px;" onclick="saveSettings()">Save All Settings</button>
                         <button id="btnBleStatus" class="btn btn-outline" style="flex: 1; min-width: 150px; border-color: var(--accent); color: var(--accent); border-radius: 16px;" onclick="connectBluetoothPrinter()">📡 Pair BLE Printer</button>
                     </div>
                 </div>
@@ -436,6 +436,6 @@
         caches.keys().then(function(names) { for (let name of names) caches.delete(name); });
     </script>
     
-    <script src="app.js?v=1018"></script>
+    <script src="app.js?v=1030"></script>
 </body>
 </html>
