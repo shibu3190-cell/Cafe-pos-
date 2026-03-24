@@ -1,22 +1,23 @@
 :root {
     /* ✨ EXACT ROYAL CAFE THEME (Based on Images) ✨ */
-    --primary: #382A25;       /* Deepest Brown / Near Black */
+    --primary: #3B2A22;       /* Deepest Brown / Near Black */
     --primary-dark: #231915; 
     --primary-light: #5A463D; 
+    --milk-choc: #8D5B4C;     /* Milk Chocolate for Add Buttons & Active Categories */
     --accent: #9C897E;        /* Muted Taupe/Gold */
-    --bg-body: #F4EFEA;       /* Extremely soft creamy gray */
-    --bg-surface: #FCFAF8;    /* Pure but soft white */
-    --card-bg: #F0EBE1;       /* The exact card background from image */
-    --sidebar-bg: #FDFBF8;      
-    --text-dark: #382A25; 
+    --bg-body: #EFECE7;       /* Slightly darker warm grey to contrast with cards */
+    --bg-surface: #FFFFFF;    /* Pure white */
+    --card-bg: #FFFFFF;       /* Pure white for cards to pop */
+    --sidebar-bg: #FFFFFF;      
+    --text-dark: #2B1D16; 
     --text-muted: #8E847C; 
-    --border: #E8DFD5;          
+    --border: #E8E0D5;          
     --success: #3A7D44; 
     --danger: #B53B3B; 
     --warning: #D98C21;         
     
-    --shadow-sm: 0 2px 8px rgba(56, 42, 37, 0.04); 
-    --shadow-md: 0 6px 16px rgba(56, 42, 37, 0.06); 
+    --shadow-sm: 0 2px 8px rgba(56, 42, 37, 0.03); 
+    --shadow-md: 0 4px 12px rgba(56, 42, 37, 0.08); 
     --shadow-lg: 0 12px 30px rgba(56, 42, 37, 0.1);
     --radius-md: 16px; --radius-lg: 24px; --radius-xl: 30px;
 }
@@ -27,7 +28,7 @@ body { margin: 0; background: var(--bg-body); color: var(--text-dark); display: 
 h1, h2, h3, h4, h5, h6 { margin: 0; color: var(--text-dark); }
 input:focus, select:focus { outline: none; }
 
-::-webkit-scrollbar { width: 0; height: 0; display: none; } /* Complete scrollbar removal for sleekness */
+::-webkit-scrollbar { width: 0; height: 0; display: none; } 
 
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000000; display: none; justify-content: center; align-items: center; flex-direction: column; background: rgba(56, 42, 37, 0.8); backdrop-filter: blur(8px); }
 .auth-box, .modal-box { background: var(--bg-surface); padding: 35px; border-radius: var(--radius-xl); width: 90%; max-width: 400px; text-align: center; box-shadow: var(--shadow-lg); border: none; max-height: 90vh; overflow-y: auto; }
@@ -45,8 +46,8 @@ input:focus, select:focus { outline: none; }
 .nav-btn { background: transparent; border: none; color: var(--text-muted); padding: 15px 0; width: 100%; text-align: center; font-size: 10px; font-weight: 600; cursor: pointer; transition: 0.3s; border-radius: var(--radius-md); display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 15px; }
 .nav-btn span.icon { font-size: 24px; color: inherit; }
 .nav-btn:hover { background: var(--bg-body); color: var(--primary); }
-.nav-btn.active { background: transparent; color: var(--primary); font-weight: 800; }
-.nav-btn.active span.icon { color: var(--primary); }
+.nav-btn.active { background: transparent; color: var(--milk-choc); font-weight: 800; }
+.nav-btn.active span.icon { color: var(--milk-choc); }
 .nav-btn.locked { opacity: 0.3; cursor: not-allowed; }
 
 .main-wrapper { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; background: var(--bg-body); }
@@ -84,10 +85,12 @@ input:focus, select:focus { outline: none; }
 .pos-layout { display: flex; gap: 25px; flex: 1; min-height: 0; overflow: hidden; }
 .pos-left { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; padding-right: 5px; }
 
-.tables-wrapper { background: transparent; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.04); padding: 15px; border-radius: var(--radius-lg); background: rgba(255,255,255,0.4);}
-.table-legend { display: flex; gap: 15px; font-size: 10px; font-weight: 800; color: var(--text-dark); margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; flex-wrap: wrap; }
-.table-legend span { display: flex; align-items: center; gap: 6px; opacity: 0.8;}
-.table-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+/* ✨ TABLE LEGEND: Forced to Single Row on all devices ✨ */
+.tables-wrapper { background: transparent; flex-shrink: 0; }
+.table-legend { display: flex; gap: 10px; font-size: 10px; font-weight: 800; color: var(--text-muted); margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; flex-wrap: nowrap; justify-content: space-between; overflow-x: auto; white-space: nowrap; -ms-overflow-style: none; scrollbar-width: none;}
+.table-legend::-webkit-scrollbar { display: none; }
+.table-legend span { display: flex; align-items: center; gap: 4px; opacity: 0.9;}
+.table-legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 
 /* ✨ EXACT SLEEK TABLE PILLS (IMG 1) ✨ */
 .table-grid { display: flex; overflow-x: auto; gap: 15px; padding-bottom: 5px; scrollbar-width: none; }
@@ -111,21 +114,24 @@ input:focus, select:focus { outline: none; }
 .category-scroll { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; flex-shrink: 0; white-space: nowrap; flex-wrap: nowrap; -ms-overflow-style: none; scrollbar-width: none; }
 .category-scroll::-webkit-scrollbar { display: none; }
 
-/* ✨ CATEGORY CHIPS MATCHING IMG 1 ✨ */
-.cat-chip { padding: 10px 24px; background: transparent; border: 1px solid rgba(0,0,0,0.1); border-radius: 30px; cursor: pointer; white-space: nowrap; font-size: 13px; font-weight: 600; color: var(--text-dark); transition: 0.2s; }
-.cat-chip:hover { background: rgba(0,0,0,0.03); }
-.cat-chip.active { background: var(--primary); color: white; border-color: var(--primary); font-weight: 700; box-shadow: var(--shadow-sm);}
+/* ✨ CATEGORY CHIPS WITH MILK CHOCOLATE ACTIVE STATE ✨ */
+.cat-chip { padding: 10px 24px; background: var(--bg-surface); border: 1px solid rgba(0,0,0,0.04); border-radius: 30px; cursor: pointer; white-space: nowrap; font-size: 13px; font-weight: 600; color: var(--text-dark); transition: 0.2s; box-shadow: var(--shadow-sm);}
+.cat-chip:hover { background: rgba(0,0,0,0.02); }
+.cat-chip.active { background: var(--milk-choc); color: white; border-color: var(--milk-choc); font-weight: 700; box-shadow: 0 4px 10px rgba(141, 91, 76, 0.3);}
 
+/* ✨ NARROW SEARCH BAR, VERTICALLY CENTERED ICONS ✨ */
 .search-container { position: relative; width: 100%; display: flex; align-items: center; margin-bottom: 5px;}
-.search-container span { position: absolute; left: 20px; font-size: 20px; color: var(--text-muted); opacity: 0.6;}
-.search-bar { width: 100%; padding: 18px 20px 18px 55px; border: 1px solid rgba(0,0,0,0.05); border-radius: 30px; font-size: 15px; font-weight: 500; background: var(--bg-surface); box-shadow: var(--shadow-sm); transition: 0.3s; color: var(--text-dark); }
+.search-icon { position: absolute; left: 16px; font-size: 18px; color: var(--text-muted); opacity: 0.6; display: flex; align-items: center;}
+.mic-icon { position: absolute; right: 16px; font-size: 18px; color: var(--text-muted); opacity: 0.6; display: flex; align-items: center; cursor: pointer;}
+.search-bar { width: 100%; padding: 12px 45px; border: 1px solid rgba(0,0,0,0.05); border-radius: 30px; font-size: 14px; font-weight: 500; background: var(--bg-surface); box-shadow: var(--shadow-sm); transition: 0.3s; color: var(--text-dark); }
 .search-bar::placeholder { color: #A8A09A; font-weight: 400;}
-.search-bar:focus { box-shadow: 0 0 0 3px rgba(156, 137, 126, 0.2); }
+.search-bar:focus { box-shadow: 0 0 0 3px rgba(156, 137, 126, 0.2); outline: none;}
+
 
 /* ✨ EXACT 2-COLUMN MENU CARD MATCH ✨ */
 .menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 15px; align-content: start; padding-bottom: 30px; }
-.menu-card { background: var(--card-bg); border: none; border-radius: var(--radius-lg); padding: 16px; cursor: pointer; display: flex; flex-direction: column; position: relative; transition: 0.2s; box-shadow: 0 2px 6px rgba(0,0,0,0.03); text-align: left; min-height: 140px;}
-.menu-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); background: #EBE4DB;}
+.menu-card { background: var(--card-bg); border: 1px solid rgba(0,0,0,0.04); border-radius: var(--radius-lg); padding: 16px; cursor: pointer; display: flex; flex-direction: column; position: relative; transition: 0.2s; box-shadow: var(--shadow-md); text-align: left; min-height: 140px;}
+.menu-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
 .menu-card:active { transform: scale(0.98); }
 
 .card-top-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; width: 100%;}
@@ -136,12 +142,13 @@ input:focus, select:focus { outline: none; }
 
 .card-bottom-row { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 15px; width: 100%;}
 .card-price-col { display: flex; flex-direction: column;}
-.menu-card .price-strikethrough { font-size: 12px; color: var(--text-muted); text-decoration: line-through; opacity: 0.7; font-weight: 500; margin-bottom: -2px;}
 .menu-card .price { font-weight: 700; color: var(--primary); font-size: 18px; letter-spacing: -0.5px;}
 
 .menu-card .badge-popular { position: absolute; top: -10px; right: 10px; background: #DEAE79; color: var(--primary-dark); font-size: 9px; padding: 3px 8px; border-radius: 10px; font-weight: 800; border: 2px solid var(--card-bg); text-transform: uppercase; letter-spacing: 0.5px;}
-.menu-card .add-btn { background: var(--primary); color: #fff; border: none; border-radius: 30px; padding: 8px 16px; font-weight: 600; font-size: 13px; transition: 0.2s; pointer-events: none;}
-.item-qty-control { display: flex; align-items: center; justify-content: space-between; background: var(--primary); color: white; border-radius: 30px; padding: 4px; width: 85px; pointer-events: auto; height: 36px; }
+
+/* ✨ MILK CHOCOLATE BUTTONS ✨ */
+.menu-card .add-btn { background: var(--milk-choc); color: #fff; border: none; border-radius: 30px; padding: 8px 16px; font-weight: 600; font-size: 13px; transition: 0.2s; pointer-events: none;}
+.item-qty-control { display: flex; align-items: center; justify-content: space-between; background: var(--milk-choc); color: white; border-radius: 30px; padding: 4px; width: 85px; pointer-events: auto; height: 36px; }
 .item-qty-control button { background: transparent; border: none; color: white; font-size: 18px; font-weight: 400; width: 30px; height: 100%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .item-qty-control span { font-weight: 600; font-size: 14px; }
 
@@ -152,7 +159,7 @@ input:focus, select:focus { outline: none; }
 
 /* ✨ DESKTOP CART DRAWER ✨ */
 .pos-right { width: 350px; flex-shrink: 0; background: var(--bg-surface); border-radius: var(--radius-xl); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border);}
-.drawer-overlay { display: none; } /* Used on Mobile */
+.drawer-overlay { display: none; } 
 .drawer-handle { display: none; }
 .cart-header { padding: 25px 25px 15px 25px; background: var(--bg-surface); }
 .cart-items-container { flex: 1; overflow-y: auto; padding: 10px 25px; background: var(--bg-surface); display: flex; flex-direction: column; gap: 0; }
@@ -201,7 +208,7 @@ input:focus, select:focus { outline: none; }
 
 .data-table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px; min-width: 500px; }
 .data-table th, .data-table td { padding: 16px 15px; text-align: left; border-bottom: 1px solid var(--border); font-size: 14px; font-weight: 500;} 
-.data-table th { background: var(--bg-body); font-weight: 700; color: var(--text-muted); text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+.data-table th { background: var(--bg-surface); font-weight: 700; color: var(--text-muted); text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; border-top: 1px solid var(--border);}
 .table-responsive { overflow-x: auto; background: var(--bg-surface); border-radius: var(--radius-xl); box-shadow: var(--shadow-sm); }
 
 #toast-container { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 99999; display: flex; flex-direction: column; gap: 10px; pointer-events: none; width: 90%; max-width: 400px; }
@@ -213,7 +220,6 @@ input:focus, select:focus { outline: none; }
     .pos-layout { flex-direction: column; overflow-y: visible; overflow-x: hidden; display: block; }
     .pos-left { min-height: 50vh; overflow: visible; padding-right: 0; padding-bottom: 120px; }
     
-    /* ✨ GLASS OVERLAY FOR CART DRAWER ✨ */
     .drawer-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(56, 42, 37, 0.6); backdrop-filter: blur(2px); z-index: 4999; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
     .drawer-overlay.show { opacity: 1; pointer-events: auto; }
     
@@ -229,13 +235,13 @@ input:focus, select:focus { outline: none; }
 
 @media screen and (max-width: 768px) {
     body { flex-direction: column; }
-    /* Minimalist Bottom Nav */
     .sidebar { width: 100%; height: auto; flex-direction: row; justify-content: space-around; padding: 10px 5px; position: fixed; bottom: 0; left: 0; z-index: 3000; padding-bottom: max(10px, env(safe-area-inset-bottom)); box-shadow: 0 -5px 20px rgba(0,0,0,0.05); background: var(--bg-surface); border: none;}
     .sidebar-brand { display: none; } 
     .nav-btn { flex-direction: column; padding: 8px 4px; font-size: 10px; gap: 4px; text-align: center; border-radius: 12px; margin-bottom: 0; flex: 1; justify-content: center; color: #A8A09A; }
     .nav-btn span.icon { font-size: 24px; } 
-    .nav-text { display: none; } /* Text hidden for extreme minimalism like image */
-    .nav-btn.active { color: var(--primary); background: transparent; font-weight: bold;}
+    .nav-text { display: none; } 
+    .nav-btn.active { color: var(--milk-choc); background: transparent; font-weight: bold;}
+    .nav-btn.active span.icon { color: var(--milk-choc); }
     
     .main-wrapper { padding-bottom: 60px; } 
     .main-content { padding: 0 15px 15px 15px; }
@@ -244,11 +250,13 @@ input:focus, select:focus { outline: none; }
     .topbar-date { font-size: 11px; padding: 4px 12px; }
     .card > div[style*="display: grid"] { grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)) !important; }
 
+    .table-legend { font-size: 8.5px; gap: 5px; }
+
     /* Compact Premium Menu Grid */
     .menu-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; } 
     .menu-card { padding: 15px; min-height: 150px;}
 
-    /* ✨ EXACT SLEEK FLOATING BOTTOM CART (IMG 1) ✨ */
+    /* ✨ EXACT SLEEK FLOATING BOTTOM CART ✨ */
     .mobile-pos-actions {
         display: flex;
         flex-direction: column;
