@@ -1,24 +1,24 @@
 :root {
     /* ✨ EXACT ROYAL CAFE THEME (Based on Images) ✨ */
-    --primary: #3B2A22;       /* Deepest Brown / Near Black */
+    --primary: #382A25;       /* Deepest Brown / Near Black */
     --primary-dark: #231915; 
     --primary-light: #5A463D; 
     --milk-choc: #8D5B4C;     /* Milk Chocolate for Add Buttons & Active Categories */
     --accent: #9C897E;        /* Muted Taupe/Gold */
-    --bg-body: #EFECE7;       /* Slightly darker warm grey to contrast with cards */
+    --bg-body: #EBE6E0;       /* Darker warm grey to contrast with cards */
     --bg-surface: #FFFFFF;    /* Pure white */
     --card-bg: #FFFFFF;       /* Pure white for cards to pop */
     --sidebar-bg: #FFFFFF;      
     --text-dark: #2B1D16; 
     --text-muted: #8E847C; 
-    --border: #E8E0D5;          
+    --border: #E8DFD5;          
     --success: #3A7D44; 
     --danger: #B53B3B; 
     --warning: #D98C21;         
     
-    --shadow-sm: 0 2px 8px rgba(56, 42, 37, 0.03); 
-    --shadow-md: 0 4px 12px rgba(56, 42, 37, 0.08); 
-    --shadow-lg: 0 12px 30px rgba(56, 42, 37, 0.1);
+    --shadow-sm: 0 4px 12px rgba(56, 42, 37, 0.05); 
+    --shadow-md: 0 8px 24px rgba(56, 42, 37, 0.08); 
+    --shadow-lg: 0 16px 40px rgba(56, 42, 37, 0.12);
     --radius-md: 16px; --radius-lg: 24px; --radius-xl: 30px;
 }
 
@@ -159,7 +159,7 @@ input:focus, select:focus { outline: none; }
 
 /* ✨ DESKTOP CART DRAWER ✨ */
 .pos-right { width: 350px; flex-shrink: 0; background: var(--bg-surface); border-radius: var(--radius-xl); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border);}
-.drawer-overlay { display: none; } 
+.drawer-overlay { display: none; } /* Used on Mobile */
 .drawer-handle { display: none; }
 .cart-header { padding: 25px 25px 15px 25px; background: var(--bg-surface); }
 .cart-items-container { flex: 1; overflow-y: auto; padding: 10px 25px; background: var(--bg-surface); display: flex; flex-direction: column; gap: 0; }
@@ -220,6 +220,7 @@ input:focus, select:focus { outline: none; }
     .pos-layout { flex-direction: column; overflow-y: visible; overflow-x: hidden; display: block; }
     .pos-left { min-height: 50vh; overflow: visible; padding-right: 0; padding-bottom: 120px; }
     
+    /* ✨ GLASS OVERLAY FOR CART DRAWER ✨ */
     .drawer-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(56, 42, 37, 0.6); backdrop-filter: blur(2px); z-index: 4999; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
     .drawer-overlay.show { opacity: 1; pointer-events: auto; }
     
@@ -235,11 +236,12 @@ input:focus, select:focus { outline: none; }
 
 @media screen and (max-width: 768px) {
     body { flex-direction: column; }
+    /* Minimalist Bottom Nav */
     .sidebar { width: 100%; height: auto; flex-direction: row; justify-content: space-around; padding: 10px 5px; position: fixed; bottom: 0; left: 0; z-index: 3000; padding-bottom: max(10px, env(safe-area-inset-bottom)); box-shadow: 0 -5px 20px rgba(0,0,0,0.05); background: var(--bg-surface); border: none;}
     .sidebar-brand { display: none; } 
     .nav-btn { flex-direction: column; padding: 8px 4px; font-size: 10px; gap: 4px; text-align: center; border-radius: 12px; margin-bottom: 0; flex: 1; justify-content: center; color: #A8A09A; }
     .nav-btn span.icon { font-size: 24px; } 
-    .nav-text { display: none; } 
+    .nav-text { display: none; } /* Text hidden for extreme minimalism like image */
     .nav-btn.active { color: var(--milk-choc); background: transparent; font-weight: bold;}
     .nav-btn.active span.icon { color: var(--milk-choc); }
     
@@ -250,13 +252,11 @@ input:focus, select:focus { outline: none; }
     .topbar-date { font-size: 11px; padding: 4px 12px; }
     .card > div[style*="display: grid"] { grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)) !important; }
 
-    .table-legend { font-size: 8.5px; gap: 5px; }
-
     /* Compact Premium Menu Grid */
     .menu-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; } 
     .menu-card { padding: 15px; min-height: 150px;}
 
-    /* ✨ EXACT SLEEK FLOATING BOTTOM CART ✨ */
+    /* ✨ EXACT SLEEK FLOATING BOTTOM CART (IMG 1) ✨ */
     .mobile-pos-actions {
         display: flex;
         flex-direction: column;
