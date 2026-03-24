@@ -22,7 +22,7 @@ let menuItems = [
     { id: 5, name: "Veg Biryani", price: 150.00, category: "Food", gstRate: 5, trackStock: true, stockQty: 10 }
 ];
 
-let orderHistory = []; let dailyExpenses = []; let tablesInfo = {}; let menuCategories = ["Tea/Coffee", "Food", "Cigarettes", "Other"];
+let orderHistory = []; let dailyExpenses = []; let tablesInfo = {}; let menuCategories = ["All", "Tea", "Food", "Cig", "Cigarettes"];
 
 const myClientID = localStorage.getItem('cafeLicenseKey') || 'unregistered';
 let currentRole = null; let activeTable = 1; let activeCategory = "All"; let editingMenuItemId = null; let editingExpenseId = null; let syncQueue = [];
@@ -67,7 +67,7 @@ function saveToLocal() {
 }
 
 function updateAllUI() {
-    updateProfileVisuals(); renderCategoryDropdown(); renderCategoryListUI(); renderTables(); renderMenuUI();
+    updateProfileVisuals(); renderCategoryDropdown(); renderCategoryFilters(); renderCategoryListUI(); renderTables(); renderMenuUI();
     if(document.getElementById('pos').classList.contains('active')) updateCartUI();
     if(document.getElementById('reports').classList.contains('active')) renderStatements();
     if(document.getElementById('expenses').classList.contains('active')) renderExpensesUI();
@@ -78,7 +78,6 @@ function updateAllUI() {
     document.getElementById('openAiKeyInput').value = shopProfile.openAiKey || '';
 }
 
-// ✨ FIXED FIREBASE CONCURRENCY (ONLY UPDATES ACTIVE TABLE) ✨
 window.addEventListener('firebaseLoaded', () => {
     if(!navigator.onLine) return; 
     const dataRef = window.firebaseRef(window.firebaseDB, `clients/${myClientID}`);
@@ -100,15 +99,7 @@ window.addEventListener('firebaseLoaded', () => {
 });
 
 function persistAllToFirebase() { saveToLocal(); if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}`), { profile: shopProfile, menu: menuItems, categories: menuCategories, history: orderHistory, expenses: dailyExpenses, tables: tablesInfo }); }
-
-// Surgical Table Push
-function persistTables() { 
-    saveToLocal(); 
-    if(navigator.onLine && window.firebaseUpdate) {
-        let updates = {}; updates[`clients/${myClientID}/tables/${activeTable}`] = tablesInfo[activeTable];
-        window.firebaseUpdate(window.firebaseRef(window.firebaseDB), updates);
-    }
-}
+function persistTables() { saveToLocal(); if(navigator.onLine && window.firebaseUpdate) { let updates = {}; updates[`clients/${myClientID}/tables/${activeTable}`] = tablesInfo[activeTable]; window.firebaseUpdate(window.firebaseRef(window.firebaseDB), updates); } }
 function persistMenu() { saveToLocal(); if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/menu`), menuItems); }
 function persistCategories() { saveToLocal(); if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/categories`), menuCategories); }
 function persistProfile() { saveToLocal(); if(navigator.onLine && window.firebaseSet) window.firebaseSet(window.firebaseRef(window.firebaseDB, `clients/${myClientID}/profile`), shopProfile); }
@@ -176,7 +167,7 @@ window.onload = async function() {
     const isAct = localStorage.getItem('cafeSoftwareActivated'); const actDate = localStorage.getItem('cafeActivationDate');
     if (!isAct || !actDate || myClientID === 'unregistered') { document.getElementById('activationOverlay').style.display = 'flex'; return; }
     if ((Date.now() - parseInt(actDate)) / (1000 * 60 * 60 * 24) > 200) { localStorage.removeItem('cafeSoftwareActivated'); localStorage.removeItem('cafeActivationDate'); localStorage.removeItem('cafeLicenseKey'); alert("Your license has expired."); document.getElementById('activationOverlay').style.display = 'flex'; return; } 
-    else { document.getElementById('activationOverlay').style.display = 'none'; if(currentRole === null) document.getElementById('loginOverlay').style.display = 'flex'; if(navigator.onLine) performRemoteLicenseCheck(); }
+    else { document.getElementById('activationOverlay').style.display = 'none'; if(currentRole === null) document.getElementById('loginOverlay').style.display = 'flex'; performRemoteLicenseCheck(); }
     document.getElementById('reportDateSelect').value = getLocalISODate(); checkDailyReset(); processSyncQueue(); renderCategoryFilters(); 
 }
 
@@ -211,7 +202,6 @@ function updateProfileVisuals() {
     if (shopProfile.logo) { document.getElementById('sidebarLogo').src = shopProfile.logo; document.getElementById('sidebarLogo').style.display = 'block'; document.getElementById('printLogo').src = shopProfile.logo; document.getElementById('printLogo').style.display = 'block'; }
 }
 
-// ✨ COMPRESSED LOGO UPLOAD ✨
 function loadLogo(event) { 
     const file = event.target.files[0]; 
     if (!file) return;
@@ -234,13 +224,13 @@ function loadLogo(event) {
 function saveSettings() {
     shopProfile.name = document.getElementById('shopNameInput').value; shopProfile.address = document.getElementById('shopAddressInput').value; shopProfile.fssai = document.getElementById('fssaiInput').value; shopProfile.gstin = document.getElementById('gstinInput').value; shopProfile.tableCount = parseInt(document.getElementById('tableCountInput').value); const newStartNo = parseInt(document.getElementById('startInvoiceInput').value); if(newStartNo) shopProfile.startInvoiceNo = newStartNo;
     if(document.getElementById('adminPinSetup').value.length >= 4) { shopProfile.adminPinHash = hashString(document.getElementById('adminPinSetup').value); document.getElementById('adminPinSetup').value = ''; }
-    shopProfile.openAiKey = document.getElementById('openAiKeyInput').value.trim();
+    shopProfile.openAiKey = document.getElementById('openAiKeyInput').value;
     for(let i = 1; i <= shopProfile.tableCount; i++) if(!tablesInfo[i]) tablesInfo[i] = { items: [], status: 'empty', savedTime: null, lastReminder: null };
     persistProfile(); persistTables(); showToast("Settings Saved!"); updateProfileVisuals();
 }
 
 function renderCategoryDropdown() { const select = document.getElementById('newItemCategory'); select.innerHTML = menuCategories.map(c => `<option value="${c}">${c}</option>`).join(''); }
-function renderCategoryFilters() { document.getElementById('categoryFiltersUI').innerHTML = ''; ["All", ...menuCategories].forEach(cat => { document.getElementById('categoryFiltersUI').innerHTML += `<div class="cat-chip ${cat === activeCategory ? 'active' : ''}" onclick="filterMenu('${cat}')">${cat}</div>`; }); }
+function renderCategoryFilters() { document.getElementById('categoryFiltersUI').innerHTML = ''; menuCategories.forEach(cat => { document.getElementById('categoryFiltersUI').innerHTML += `<div class="cat-chip ${cat === activeCategory ? 'active' : ''}" onclick="filterMenu('${cat}')">${cat}</div>`; }); }
 function renderCategoryListUI() { const container = document.getElementById('categoryListUI'); container.innerHTML = menuCategories.map(c => `<span class="cat-chip" style="display:inline-flex; align-items:center; gap:8px;">${c} <b style="color:var(--danger); cursor:pointer; font-size:16px;" onclick="deleteCategory('${c}')">×</b></span>`).join(''); }
 
 function addCategory() {
@@ -301,7 +291,7 @@ function modifyQty(itemId, delta, event) {
 
 function clearTable() { if(confirm("Clear this entire order?")) { tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); syncTableUI(); updateCartUI(); syncMenuUIQuantities(); document.getElementById('cartDrawer').classList.remove('open'); document.getElementById('cartDrawerOverlay').classList.remove('show'); } }
 
-// ✨ EXACT MENU RENDER HTML (MATCHING IMG 1) ✨
+// ✨ EXACT MENU HTML TO MATCH IMAGE 1 ✨
 function renderMenuUI() {
     const posGrid = document.getElementById('menuGridUI'); posGrid.innerHTML = '';
     const searchText = (document.getElementById('menuSearchInput').value || '').toLowerCase();
@@ -390,9 +380,7 @@ function addMenuItem() {
 
 function deleteMenuItem(id) { if(confirm("Delete this item permanently?")) { menuItems = menuItems.filter(item => item.id !== id); persistMenu(); renderMenuUI(); showToast("Deleted."); } }
 
-
 // ✨ AI SMART MENU ENGINE
-let pendingAiMenu = null;
 async function processAIMenu(event) {
     const file = event.target.files[0]; if (!file) return;
     const apiKey = shopProfile.openAiKey ? shopProfile.openAiKey.trim() : ""; if (!apiKey) { showToast("⚠️ Please enter your Gemini API Key in Settings first."); return; }
@@ -557,7 +545,6 @@ function exportHistoryToExcel() {
     const link = document.createElement("a"); link.setAttribute("href", URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }))); link.setAttribute("download", `Sales_${dateInput}.csv`); link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
 
-// ✨ CART UI & FLOATING MOBILE BAR ✨
 function updateCartUI() {
     const cartDiv = document.getElementById('cartUI'); cartDiv.innerHTML = '';
     let total = 0; let totalGstAmt = 0; let currentCart = tablesInfo[activeTable]?.items || [];
@@ -580,7 +567,7 @@ function updateCartUI() {
     if (fc) {
         if (totalItems > 0) {
             fc.style.display = 'flex';
-            document.getElementById('fc-count').innerText = `${totalItems} ITEMS`;
+            document.getElementById('fc-count').innerText = `📋 ${totalItems} ITEMS`;
             document.getElementById('fc-total').innerText = `${total.toFixed(2)}`;
         } else {
             fc.style.display = 'none';
@@ -597,7 +584,6 @@ function toggleCartDrawer() {
     if (drawer.classList.contains('open')) overlay.classList.add('show'); else overlay.classList.remove('show');
 }
 
-// ✨ AUTOMATIC TIMER LOGIC ✨
 function markServed() { let tInfo = tablesInfo[activeTable]; if(tInfo.items.length === 0) return showToast("Table empty!"); tInfo.status = 'served'; tInfo.lastReminder = Date.now(); persistTables(); syncTableUI(); showToast(`Table ${activeTable} served. Timer started.`); }
 setInterval(() => { const now = Date.now(); let needsSync = false; for(let i = 1; i <= shopProfile.tableCount; i++) { let tInfo = tablesInfo[i]; if(tInfo.status === 'served' || tInfo.status === 'alert') { if(tInfo.lastReminder && (now - tInfo.lastReminder) >= ALERT_THRESHOLD_MS) { tInfo.status = 'alert'; tInfo.lastReminder = now; needsSync = true; showToast(`⚠️ Table ${i} unpaid!`); } } } if(needsSync) { persistTables(); syncTableUI(); } }, 5000); 
 
@@ -622,7 +608,6 @@ function openCheckoutModal() {
     document.getElementById('checkoutModal').style.display = 'flex';
 }
 
-// ✨ INVISIBLE IFRAME PRINT FALLBACK (CRASH FREE) ✨
 function executeHtmlPrint(divId) {
     return new Promise(resolve => {
         let iframe = document.getElementById('print-iframe');
@@ -635,7 +620,6 @@ function executeHtmlPrint(divId) {
     });
 }
 
-// ✨ SECURE CHECKOUT ✨
 async function confirmCheckout() {
     let tInfo = tablesInfo[activeTable]; 
     if(!tInfo || tInfo.items.length === 0) return showToast(`Table ${activeTable} is empty!`);
@@ -670,8 +654,6 @@ async function confirmCheckout() {
     finally { payBtn.disabled = false; payBtn.innerText = "🖨️ Pay & Print"; }
 }
 
-
-// ✨ ADVANCED ESC/POS BLUETOOTH & HTML ENGINE ✨
 async function getLogoBytes(base64Image) {
     return new Promise((resolve) => {
         const img = new Image();
@@ -834,17 +816,6 @@ async function sendKotToPrinter(tableNo, items) {
     try { for (let i = 0; i < payload.length; i += CHUNK_SIZE) { const chunk = payload.slice(i, i + CHUNK_SIZE); await printCharacteristic.writeValue(chunk); await new Promise(resolve => setTimeout(resolve, 40)); } } catch(e) { console.error(e); showToast("❌ KOT Print Failed."); }
 }
 
-async function printKitchenTicket() {
-    const btn = document.querySelector('#kotModal .btn-warning'); btn.disabled = true; btn.innerText = printCharacteristic ? "⏳ Printing KOT..." : "📄 Generating PDF KOT...";
-    let tInfo = tablesInfo[activeTable];
-    try { await sendKotToPrinter(activeTable, tInfo.items); document.getElementById('kotModal').style.display = 'none'; showToast(`👨‍🍳 Table ${activeTable} KOT Processed.`); } 
-    catch(e) { console.error(e); showToast("❌ KOT Error."); } finally { btn.disabled = false; btn.innerText = "🖨️ Print KOT"; }
-}
-
-function reprintReceipt(orderId) { const order = orderHistory.find(o => o.id === orderId); if (!order || !order.rawItems) return showToast("Cannot print old order details."); sendEscPosToPrinter(order); }
-function testThermalPrinter() { const dummyOrder = { billNo: 'TEST-999', date: new Date().toLocaleString(), orderType: 'Dine-In', paymentMode: 'Cash', amount: 270, rawItems: [ {name: "Standard Espresso", qty: 1, price: 80, gstRate: 5}, {name: "Water Bottle", qty: 2, price: 20, gstRate: 0} ] }; sendEscPosToPrinter(dummyOrder); }
-
-// ✨ TOAST ENGINE ✨
 function showToast(message) { 
     const container = document.getElementById('toast-container'); if (!container) return;
     const toast = document.createElement('div'); toast.className = 'toast'; toast.innerHTML = `<span>🔔</span> ${message}`; container.appendChild(toast); 
