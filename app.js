@@ -22,7 +22,7 @@ let menuItems = [
     { id: 5, name: "Veg Biryani", price: 150.00, category: "Food", gstRate: 5, trackStock: true, stockQty: 10 }
 ];
 
-let orderHistory = []; let dailyExpenses = []; let tablesInfo = {}; let menuCategories = ["All", "Tea", "Food", "Cig", "Cigarettes"];
+let orderHistory = []; let dailyExpenses = []; let tablesInfo = {}; let menuCategories = ["All", "Tea/Coffee", "Food", "Cigarettes", "Other"];
 
 const myClientID = localStorage.getItem('cafeLicenseKey') || 'unregistered';
 let currentRole = null; let activeTable = 1; let activeCategory = "All"; let editingMenuItemId = null; let editingExpenseId = null; let syncQueue = [];
@@ -567,7 +567,7 @@ function updateCartUI() {
     if (fc) {
         if (totalItems > 0) {
             fc.style.display = 'flex';
-            document.getElementById('fc-count').innerText = `📋 ${totalItems} ITEMS`;
+            document.getElementById('fc-count').innerText = `${totalItems} ITEMS`;
             document.getElementById('fc-total').innerText = `${total.toFixed(2)}`;
         } else {
             fc.style.display = 'none';
