@@ -34,10 +34,6 @@ input:focus, select:focus { outline: none; }
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000000; display: none; justify-content: center; align-items: center; flex-direction: column; background: rgba(43, 29, 22, 0.95); backdrop-filter: blur(5px); }
 .auth-box, .modal-box { background: var(--bg-surface); padding: 40px; border-radius: var(--radius-lg); width: 90%; max-width: 400px; text-align: center; box-shadow: var(--shadow-lg); border: 1px solid var(--border); max-height: 90vh; overflow-y: auto; }
 .auth-box h2 { color: var(--primary); margin-bottom: 20px; font-weight: 800; }
-
-/* ✨ CHECKOUT HUGE TOTAL ✨ */
-.huge-total { font-size: 38px; font-weight: 800; color: var(--accent); text-align: center; margin: 15px 0; letter-spacing: -1px; }
-
 .key-input, .pin-input { width: 100%; padding: 15px; font-size: 20px; text-align: center; letter-spacing: 2px; border: 2px solid var(--border); border-radius: var(--radius-md); margin-bottom: 20px; background: #fff; color: var(--text-dark); font-family: monospace; font-weight: 700; transition: 0.3s; }
 .key-input:focus, .pin-input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(198, 124, 78, 0.15); }
 .pin-input { letter-spacing: 15px; font-size: 24px; font-weight: bold; }
@@ -110,7 +106,7 @@ input:focus, select:focus { outline: none; }
 
 .menu-wrapper { display: flex; flex-direction: column; gap: 15px; flex: 1; min-height: 0; }
 
-.category-scroll { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; flex-shrink: 0; white-space: nowrap; flex-wrap: nowrap; -ms-overflow-style: none; scrollbar-width: none; }
+.category-scroll { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; flex-shrink: 0; white-space: nowrap; -ms-overflow-style: none; scrollbar-width: none; }
 .category-scroll::-webkit-scrollbar { display: none; }
 
 .cat-chip { padding: 12px 24px; background: var(--bg-surface); border: none; border-radius: 30px; cursor: pointer; white-space: nowrap; font-size: 14px; font-weight: 700; color: var(--text-dark); transition: 0.2s; box-shadow: var(--shadow-sm); }
@@ -122,7 +118,7 @@ input:focus, select:focus { outline: none; }
 .search-bar { width: 100%; padding: 16px 20px 16px 50px; border: none; border-radius: 30px; font-size: 15px; font-weight: 600; background: var(--bg-surface); box-shadow: var(--shadow-sm); transition: 0.3s; color: var(--text-dark); }
 .search-bar:focus { box-shadow: 0 0 0 3px rgba(75, 46, 43, 0.1); }
 
-/* ✨ EXACT MENU CARD MATCH ✨ */
+/* ✨ EXACT MENU CARD MATCH FROM IMG 1 ✨ */
 .menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; align-content: start; padding-bottom: 30px; }
 .menu-card { background: var(--bg-surface); border: none; border-radius: 20px; padding: 16px 12px; cursor: pointer; text-align: center; display: flex; flex-direction: column; position: relative; transition: 0.2s; box-shadow: var(--shadow-md); }
 .menu-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
@@ -279,22 +275,4 @@ input:focus, select:focus { outline: none; }
     .nav-text { display: none; } 
     .nav-btn span.icon { font-size: 24px; }
     .menu-grid { grid-template-columns: repeat(auto-fill, minmax(95px, 1fr)); }
-}
-
-/* ✨ ROBUST MOBILE PRINT LOGIC ✨ */
-body.printing .main-wrapper, body.printing .sidebar, body.printing .modal-overlay, body.printing .mobile-pos-actions, body.printing #toast-container { display: none !important; }
-body.printing { background: #fff !important; }
-
-@media print {
-    @page { margin: 0; size: auto; } 
-    body { background: #fff; margin: 0; padding: 0; }
-    .sidebar, .main-wrapper, .modal-overlay, #toast-container, .mobile-pos-actions { display: none !important; }
-    #print-receipt, #print-kot { width: 100%; max-width: 100%; padding: 2mm; margin: 0; font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; box-sizing: border-box; display: block !important; }
-    .print-center { text-align: center; } 
-    .print-row { display: flex; justify-content: space-between; margin-bottom: 5px; align-items: flex-start; width: 100%; }
-    .print-row span:first-child { flex: 1; text-align: left; padding-right: 10px; word-wrap: break-word; overflow-wrap: break-word; line-height: 1.2;}
-    .print-row span:last-child { white-space: nowrap; text-align: right; font-weight: bold; }
-    .print-line { border-bottom: 1px dashed #000; margin: 8px 0; width: 100%; }
-    #printLogo { max-width: 45px; max-height: 45px; margin: 0 auto 8px auto; object-fit: contain; filter: grayscale(100%) contrast(200%); }
-    .print-meta { font-size: 11px; margin: 2px 0; color: #000; }
 }
