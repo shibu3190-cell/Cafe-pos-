@@ -8,7 +8,7 @@
     <title>The Bong Bhoj Terminal</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#F4EFEA">
+    <meta name="theme-color" content="#4B2E2B">
     <link rel="apple-touch-icon" href="icon-192.png">
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -78,7 +78,7 @@
                 <h2 style="color: var(--success); font-size: 22px;">🤖 Menu Extracted Successfully</h2>
                 <p>Review the AI-generated menu tree below before importing.</p>
             </div>
-            <div id="aiPreviewTree" style="background: var(--bg-body); padding: 20px; border-radius: var(--radius-md); font-family: monospace; font-size: 14px; max-height: 40vh; overflow-y: auto; text-align: left; line-height: 1.6; color: var(--text-dark); font-weight: 600;"></div>
+            <div id="aiPreviewTree" style="background: var(--bg-surface); padding: 20px; border-radius: var(--radius-md); font-family: monospace; font-size: 14px; max-height: 40vh; overflow-y: auto; text-align: left; line-height: 1.6; color: var(--text-dark); font-weight: 600; border: 1px solid var(--border);"></div>
             <div class="modal-actions">
                 <button class="btn btn-outline" onclick="document.getElementById('aiPreviewModal').style.display='none'">Cancel</button>
                 <button class="btn btn-success" style="flex: 2; font-size: 16px;" onclick="confirmAiImport()">✅ Confirm & Import</button>
@@ -195,9 +195,9 @@
                         
                         <div class="menu-wrapper">
                             <div class="search-container">
-                                <span>🔍</span>
+                                <span class="search-icon">🔍</span>
                                 <input type="text" id="menuSearchInput" class="search-bar" placeholder="Search menu items..." onkeyup="renderMenuUI()">
-                                <span style="left: auto; right: 20px; font-size: 20px; cursor: pointer;">🎤</span>
+                                <span class="mic-icon">🎤</span>
                             </div>
                             
                             <div class="category-scroll" id="categoryFiltersUI"></div>
@@ -436,6 +436,6 @@
         caches.keys().then(function(names) { for (let name of names) caches.delete(name); });
     </script>
     
-    <script src="app.js?v=1015"></script>
+    <script src="app.js?v=1018"></script>
 </body>
 </html>
