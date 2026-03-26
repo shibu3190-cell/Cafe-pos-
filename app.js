@@ -17,9 +17,7 @@ let shopProfile = { name: "The bong bhoj Terminal", address: "", fssai: "", gsti
 let menuItems = [ 
     { id: 1, name: "Espresso", price: 80.00, category: "Tea/Coffee", gstRate: 5, trackStock: true, stockQty: 28, image: "" }, 
     { id: 2, name: "Chicken Sandwich", price: 150.00, category: "Food", gstRate: 5, trackStock: false, stockQty: 0, badge: "Popular", image: "" },
-    { id: 3, name: "Gold flake", price: 8.00, category: "Cigarettes", gstRate: 0, trackStock: true, stockQty: 28, image: "" },
-    { id: 4, name: "Black Coffee", price: 80.00, category: "Tea/Coffee", gstRate: 5, trackStock: true, stockQty: 100, image: "" },
-    { id: 5, name: "Veg Biryani", price: 150.00, category: "Food", gstRate: 5, trackStock: true, stockQty: 10, image: "" }
+    { id: 3, name: "Gold flake", price: 8.00, category: "Cigarettes", gstRate: 0, trackStock: true, stockQty: 28, image: "" }
 ];
 
 let orderHistory = []; let dailyExpenses = []; let tablesInfo = {}; let menuCategories = ["All", "Tea/Coffee", "Food", "Cigarettes", "Other"];
@@ -52,6 +50,10 @@ async function loadFromLocal() {
     await idb.init();
     const lProf = await idb.get('cafe_profile'); if (lProf) shopProfile = lProf;
     const lMenu = await idb.get('cafe_menu'); if (lMenu) menuItems = lMenu;
+    
+    // Clean up any previously corrupted images from the database
+    menuItems.forEach(item => { if(item.image && !item.image.startsWith('data:image')) item.image = ""; });
+    
     const lCat = await idb.get('cafe_categories'); if(lCat) menuCategories = lCat;
     const lHist = await idb.get('cafe_history'); if (lHist) orderHistory = lHist;
     const lExp = await idb.get('cafe_expenses'); if (lExp) dailyExpenses = lExp;
@@ -77,11 +79,9 @@ function updateAllUI() {
     document.getElementById('fssaiInput').value = shopProfile.fssai || ''; document.getElementById('gstinInput').value = shopProfile.gstin || '';
     document.getElementById('tableCountInput').value = shopProfile.tableCount || 10; document.getElementById('startInvoiceInput').value = shopProfile.startInvoiceNo || 1001; 
     document.getElementById('openAiKeyInput').value = shopProfile.openAiKey || '';
-    
     if(document.getElementById('upiIdInput')) document.getElementById('upiIdInput').value = shopProfile.upiId || '';
     if(document.getElementById('enableQrCodeInput')) document.getElementById('enableQrCodeInput').checked = shopProfile.showQr || false;
-    
-    generateSettingsQRPreview(); 
+    if(window.generateSettingsQRPreview) generateSettingsQRPreview(); 
 }
 
 // ✨ LIVE QR PREVIEW ENGINE ✨
@@ -253,10 +253,8 @@ function saveSettings() {
     shopProfile.name = document.getElementById('shopNameInput').value; shopProfile.address = document.getElementById('shopAddressInput').value; shopProfile.fssai = document.getElementById('fssaiInput').value; shopProfile.gstin = document.getElementById('gstinInput').value; shopProfile.tableCount = parseInt(document.getElementById('tableCountInput').value); const newStartNo = parseInt(document.getElementById('startInvoiceInput').value); if(newStartNo) shopProfile.startInvoiceNo = newStartNo;
     if(document.getElementById('adminPinSetup').value.length >= 4) { shopProfile.adminPinHash = hashString(document.getElementById('adminPinSetup').value); document.getElementById('adminPinSetup').value = ''; }
     shopProfile.openAiKey = document.getElementById('openAiKeyInput').value;
-    
     if(document.getElementById('upiIdInput')) shopProfile.upiId = document.getElementById('upiIdInput').value.trim();
     if(document.getElementById('enableQrCodeInput')) shopProfile.showQr = document.getElementById('enableQrCodeInput').checked;
-    
     for(let i = 1; i <= shopProfile.tableCount; i++) if(!tablesInfo[i]) tablesInfo[i] = { items: [], status: 'empty', savedTime: null, lastReminder: null };
     persistProfile(); persistTables(); showToast("Settings Saved!"); updateProfileVisuals();
 }
@@ -323,6 +321,7 @@ function modifyQty(itemId, delta, event) {
 
 function clearTable() { if(confirm("Clear this entire order?")) { tablesInfo[activeTable] = { items: [], status: 'empty', savedTime: null, lastReminder: null }; persistTables(); syncTableUI(); updateCartUI(); syncMenuUIQuantities(); document.getElementById('cartDrawer').classList.remove('open'); document.getElementById('cartDrawerOverlay').classList.remove('show'); } }
 
+// ✨ EXACT MENU HTML (BROKEN ICON FAILSAFE INCLUDED) ✨
 function renderMenuUI() {
     const posGrid = document.getElementById('menuGridUI'); posGrid.innerHTML = '';
     const searchText = (document.getElementById('menuSearchInput').value || '').toLowerCase();
@@ -336,7 +335,16 @@ function renderMenuUI() {
             stockIndicator = item.stockQty > 0 ? `<span class="stock-indicator green"><i></i> In Stock</span>` : `<span class="stock-indicator red"><i></i> Out of Stock</span>`;
         }
 
-        let imageHtml = item.image ? `<img src="${item.image}" class="card-img">` : `<div class="card-img-placeholder">${item.name.charAt(0).toUpperCase()}</div>`;
+        // Failsafe: If image string is broken, instantly fallback to letter placeholder using onerror
+        let imageHtml = '';
+        if (item.image && item.image.startsWith('data:image')) {
+            imageHtml = `
+                <img src="${item.image}" class="card-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div class="card-img-placeholder" style="display: none;">${item.name.charAt(0).toUpperCase()}</div>
+            `;
+        } else {
+            imageHtml = `<div class="card-img-placeholder" style="display: flex;">${item.name.charAt(0).toUpperCase()}</div>`;
+        }
 
         posGrid.innerHTML += `
         <div class="menu-card" onclick="addToCart(${item.id}, event)">
@@ -403,7 +411,7 @@ function handleItemImageUpload(event) {
     reader.readAsDataURL(file);
 }
 
-// ✨ FIXED AI IMAGE ENGINE (DIRECT FETCH WITH BLOB) ✨
+// ✨ FIXED AI IMAGE ENGINE (BLOB FETCHING FOR CORS BYPASS) ✨
 async function generateAIImage() {
     const name = document.getElementById('newItemName').value.trim();
     if (!name) return showToast("⚠️ Enter an Item Name first to generate image!");
@@ -411,14 +419,16 @@ async function generateAIImage() {
     const btn = document.getElementById('btnGenerateAI');
     const preview = document.getElementById('newItemImagePreview');
     
-    btn.innerText = "⏳ Generating..."; btn.disabled = true;
+    btn.innerText = "⏳ Wait..."; 
+    btn.disabled = true;
+    
     preview.style.display = "block";
-    preview.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'><rect width='80' height='80' fill='%23f4efeA'/><text x='40' y='45' font-family='sans-serif' font-size='10' font-weight='bold' text-anchor='middle' fill='%238d5b4c'>Wait...</text></svg>";
-
+    preview.style.opacity = "0.5";
+    
     try {
         const prompt = encodeURIComponent(`Delicious highly professional food photography of ${name}, bright studio lighting, top down view, white plate, minimalist background, 4k resolution`);
-        // Using direct fetch to blob bypasses strict canvas CORS issues
-        const url = `https://image.pollinations.ai/prompt/${prompt}?width=400&height=300&nologo=true&seed=${Math.floor(Math.random() * 10000)}`;
+        // Seed added to prevent browser caching old broken requests
+        const url = `https://image.pollinations.ai/prompt/${prompt}?width=400&height=300&nologo=true&seed=${Date.now()}`;
         
         const response = await fetch(url);
         if(!response.ok) throw new Error("Network error fetching image.");
@@ -426,20 +436,22 @@ async function generateAIImage() {
         const blob = await response.blob();
         const reader = new FileReader();
         reader.onloadend = () => {
-            currentItemImageBase64 = reader.result;
+            currentItemImageBase64 = reader.result; // This generates a perfect Base64 string from the blob
             preview.src = currentItemImageBase64;
-            btn.innerText = "✨ AI Generate"; btn.disabled = false;
+            preview.style.opacity = "1";
+            btn.innerText = "✨ AI Generate"; 
+            btn.disabled = false;
             showToast("✅ Image Generated!");
         };
         reader.readAsDataURL(blob);
     } catch (error) { 
-        console.error(error); 
+        console.error("AI Image Gen Error:", error); 
         preview.style.display = "none";
-        showToast("❌ Failed to generate image."); 
-        btn.innerText = "✨ AI Generate"; btn.disabled = false; 
+        showToast("❌ Failed to generate image. Check internet."); 
+        btn.innerText = "✨ AI Generate"; 
+        btn.disabled = false; 
     }
 }
-
 
 function openAddMenuItemModal() {
     editingMenuItemId = null; renderCategoryDropdown();
@@ -463,8 +475,13 @@ function editMenuItem(id) {
         document.getElementById('newItemTrackStock').checked = item.trackStock || false; document.getElementById('newItemStock').style.display = item.trackStock ? 'block' : 'none'; document.getElementById('newItemStock').value = item.stockQty || '';
         
         currentItemImageBase64 = item.image || "";
-        if(currentItemImageBase64) { document.getElementById('newItemImagePreview').src = currentItemImageBase64; document.getElementById('newItemImagePreview').style.display = "block"; } 
-        else { document.getElementById('newItemImagePreview').style.display = "none"; }
+        if(currentItemImageBase64 && currentItemImageBase64.startsWith('data:image')) { 
+            document.getElementById('newItemImagePreview').src = currentItemImageBase64; 
+            document.getElementById('newItemImagePreview').style.display = "block"; 
+            document.getElementById('newItemImagePreview').style.opacity = "1";
+        } else { 
+            document.getElementById('newItemImagePreview').style.display = "none"; 
+        }
         
         editingMenuItemId = id; document.getElementById('menuFormTitle').innerText = "Edit Menu Item"; document.getElementById('addMenuBtn').innerText = "💾 Update Item"; document.getElementById('menuItemModal').style.display = 'flex';
     }
@@ -486,7 +503,7 @@ function addMenuItem() {
 
 function deleteMenuItem(id) { if(confirm("Delete this item permanently?")) { menuItems = menuItems.filter(item => item.id !== id); persistMenu(); renderMenuUI(); showToast("Deleted."); } }
 
-// ✨ AI SMART MENU ENGINE (WITH AUTO-IMAGE FETCH) ✨
+// ✨ AI SMART MENU ENGINE WITH BACKGROUND IMAGE FETCHING ✨
 async function processAIMenu(event) {
     const file = event.target.files[0]; if (!file) return;
     const apiKey = shopProfile.openAiKey ? shopProfile.openAiKey.trim() : ""; if (!apiKey) { showToast("⚠️ Please enter your Gemini API Key in Settings first."); return; }
@@ -526,7 +543,7 @@ async function processAIMenu(event) {
 
         const base64Clean = base64Data.split(',')[1];
         
-        // Update prompt to ask for image_prompt
+        // Telling the AI to also write an image generation prompt for each item!
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [ { text: `Extract Categories, Items, Prices, and GST percentages (output 0 if missing). For each item, write a 5-word photography prompt. Output strictly as a JSON object: { "categories": [ { "name": "CategoryName", "items": [ { "name": "ItemName", "price": 120, "gst": 0, "image_prompt": "delicious ItemName, high quality photography" } ] } ] }` }, { inline_data: { mime_type: mimeType, data: base64Clean } } ] }], generationConfig: { response_mime_type: "application/json" } })
@@ -578,10 +595,7 @@ async function confirmAiImport() {
                         const newItem = { id: Date.now() + (catIndex * 100) + itemIndex + Math.floor(Math.random() * 1000), name: String(rawName).trim(), category: catName, price: parseFloat(rawPrice) || 0, gstRate: parseFloat(rawGst) || 0, trackStock: false, stockQty: 0, image: "" };
                         menuItems.push(newItem);
                         itemsAdded++;
-                        
-                        if (item.image_prompt) {
-                            itemsToFetchImagesFor.push({ id: newItem.id, prompt: item.image_prompt });
-                        }
+                        if (item.image_prompt) itemsToFetchImagesFor.push({ id: newItem.id, prompt: item.image_prompt });
                     }
                 });
             }
@@ -590,28 +604,31 @@ async function confirmAiImport() {
         persistCategories(); persistMenu(); renderCategoryDropdown(); renderCategoryFilters(); renderCategoryListUI(); renderMenuUI();
         document.getElementById('aiPreviewModal').style.display = 'none'; pendingAiMenu = null;
         showToast(`✅ Imported ${itemsAdded} items & Auto-Created ${newCategoriesAdded} categories!`);
-        
-        // Background Image Fetching
+
+        // Background Image Fetching (paced to avoid rate limits)
         if (itemsToFetchImagesFor.length > 0) {
             showToast(`🤖 Downloading ${itemsToFetchImagesFor.length} images in background...`);
             for (let info of itemsToFetchImagesFor) {
                 try {
-                    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(info.prompt)}?width=400&height=300&nologo=true&seed=${Math.floor(Math.random() * 10000)}`;
+                    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(info.prompt)}?width=400&height=300&nologo=true&seed=${Date.now() + Math.random()}`;
                     const res = await fetch(url);
-                    const blob = await res.blob();
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                        const targetItem = menuItems.find(m => m.id === info.id);
-                        if (targetItem) {
-                            targetItem.image = reader.result;
-                            persistMenu();
-                            renderMenuUI(); // Refresh UI dynamically as images load
-                        }
-                    };
-                    reader.readAsDataURL(blob);
-                    await new Promise(r => setTimeout(r, 1000)); // Rate limit to avoid bans
+                    if(res.ok) {
+                        const blob = await res.blob();
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            const targetItem = menuItems.find(m => m.id === info.id);
+                            if (targetItem) {
+                                targetItem.image = reader.result;
+                                persistMenu();
+                                renderMenuUI(); // Refresh UI dynamically as images stream in
+                            }
+                        };
+                        reader.readAsDataURL(blob);
+                    }
+                    await new Promise(r => setTimeout(r, 2000)); // 2 second safety delay between fetches
                 } catch(e) { console.error("Silent image fetch failed", e); }
             }
+            showToast(`✅ All AI images downloaded!`);
         }
 
     } catch (error) { console.error(error); showToast("❌ Import failed: " + error.message); } finally { if (btn) { btn.disabled = false; btn.innerText = "✅ Confirm & Import"; } }
@@ -755,7 +772,6 @@ function executeHtmlPrint(divId) {
         let qrScript = '';
         const qrCanvas = document.querySelector('#printQrCode canvas');
         if (qrCanvas && shopProfile.showQr && shopProfile.upiId) {
-            // Crisp CSS rendering applied
             qrScript = `<div style="text-align:center; margin-top:15px;"><div style="font-weight:bold;font-size:14px;margin-bottom:5px;">SCAN TO PAY</div><img src="${qrCanvas.toDataURL('image/png')}" style="margin:0 auto; display:block; width:180px; height:180px; image-rendering: pixelated;"></div>`;
         }
         
@@ -811,10 +827,8 @@ async function getLogoBytes(base64Image) {
             width = Math.floor(width / 8) * 8; height = Math.floor(height);
             canvas.width = width; canvas.height = height;
             ctx.fillStyle = 'white'; ctx.fillRect(0, 0, width, height); 
-            
-            ctx.imageSmoothingEnabled = false; // ✨ Ensured crisp block edges for QR codes! ✨
+            ctx.imageSmoothingEnabled = false; 
             ctx.drawImage(img, 0, 0, width, height);
-            
             const imgData = ctx.getImageData(0, 0, width, height).data; const widthBytes = width / 8;
             const data = new Uint8Array(8 + (widthBytes * height));
             data[0] = 0x1D; data[1] = 0x76; data[2] = 0x30; data[3] = 0x00;
@@ -867,12 +881,12 @@ async function connectBluetoothPrinter() {
 async function sendEscPosToPrinter(order) {
     let gstSummary = {}; 
 
-    // Generate QR First (Multiple of 8 for pristine ESC/POS printing: 200x200)
+    // Generate QR First
     const qrCodeDiv = document.getElementById('printQrCode');
     qrCodeDiv.innerHTML = '';
     if (shopProfile.showQr && shopProfile.upiId) {
         const upiString = `upi://pay?pa=${shopProfile.upiId}&pn=${encodeURIComponent(shopProfile.name)}&am=${order.amount.toFixed(2)}&cu=INR`;
-        new QRCode(qrCodeDiv, { text: upiString, width: 200, height: 200, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.M });
+        new QRCode(qrCodeDiv, { text: upiString, width: 240, height: 240, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.M });
         await new Promise(r => setTimeout(r, 50)); 
     }
 
@@ -949,16 +963,13 @@ async function sendEscPosToPrinter(order) {
 
     let payloads = [];
     
-    // 1. Logo
     if (shopProfile.logo) {
         const logoBytes = await getLogoBytes(shopProfile.logo);
         if (logoBytes) { payloads.push(new Uint8Array([0x1B, 0x61, 0x01])); payloads.push(logoBytes); payloads.push(new Uint8Array([0x0A])); }
     }
 
-    // 2. Text
     payloads.push(new TextEncoder().encode(receiptText));
 
-    // 3. Hardware QR Injection
     if (shopProfile.showQr && shopProfile.upiId) {
         const qrCanvas = qrCodeDiv.querySelector('canvas');
         if (qrCanvas) {
@@ -972,7 +983,6 @@ async function sendEscPosToPrinter(order) {
         }
     }
 
-    // 4. Thank You & Cut
     payloads.push(new TextEncoder().encode(ALIGN_CENTER + 'Thank You! Visit Again\n\x0A\x0A\x0A\x0A\x1B\x6D'));
 
     let totalLength = payloads.reduce((sum, p) => sum + p.length, 0);
