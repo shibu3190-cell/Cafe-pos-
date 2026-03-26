@@ -14,12 +14,7 @@ function hashString(str) {
 const defaultPinHash = hashString("1234");
 let shopProfile = { name: "The bong bhoj Terminal", address: "", fssai: "", gstin: "", tableCount: 10, logo: "", adminPinHash: defaultPinHash, startInvoiceNo: 1001, openAiKey: "", upiId: "", showQr: false };
 
-let menuItems = [ 
-    { id: 1, name: "Espresso", price: 80.00, category: "Tea/Coffee", gstRate: 5, trackStock: true, stockQty: 28, image: "" }, 
-    { id: 2, name: "Chicken Sandwich", price: 150.00, category: "Food", gstRate: 5, trackStock: false, stockQty: 0, badge: "Popular", image: "" },
-    { id: 3, name: "Gold flake", price: 8.00, category: "Cigarettes", gstRate: 0, trackStock: true, stockQty: 28, image: "" }
-];
-
+let menuItems = [];
 let orderHistory = []; let dailyExpenses = []; let tablesInfo = {}; let menuCategories = ["All", "Tea/Coffee", "Food", "Cigarettes", "Other"];
 
 const myClientID = localStorage.getItem('cafeLicenseKey') || 'unregistered';
@@ -50,10 +45,6 @@ async function loadFromLocal() {
     await idb.init();
     const lProf = await idb.get('cafe_profile'); if (lProf) shopProfile = lProf;
     const lMenu = await idb.get('cafe_menu'); if (lMenu) menuItems = lMenu;
-    
-    // Failsafe: Clean up any previously corrupted images from the database
-    menuItems.forEach(item => { if(item.image && !item.image.startsWith('data:image')) item.image = ""; });
-    
     const lCat = await idb.get('cafe_categories'); if(lCat) menuCategories = lCat;
     const lHist = await idb.get('cafe_history'); if (lHist) orderHistory = lHist;
     const lExp = await idb.get('cafe_expenses'); if (lExp) dailyExpenses = lExp;
@@ -79,6 +70,7 @@ function updateAllUI() {
     document.getElementById('fssaiInput').value = shopProfile.fssai || ''; document.getElementById('gstinInput').value = shopProfile.gstin || '';
     document.getElementById('tableCountInput').value = shopProfile.tableCount || 10; document.getElementById('startInvoiceInput').value = shopProfile.startInvoiceNo || 1001; 
     document.getElementById('openAiKeyInput').value = shopProfile.openAiKey || '';
+    
     if(document.getElementById('upiIdInput')) document.getElementById('upiIdInput').value = shopProfile.upiId || '';
     if(document.getElementById('enableQrCodeInput')) document.getElementById('enableQrCodeInput').checked = shopProfile.showQr || false;
     
@@ -97,8 +89,7 @@ function generateSettingsQRPreview() {
     
     if (isEnabled && upiId) {
         const upiString = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(shopName)}&am=100.00&cu=INR`;
-        // High density QR for crisp settings preview
-        new QRCode(container, { text: upiString, width: 100, height: 100, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.L });
+        new QRCode(container, { text: upiString, width: 100, height: 100, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.M });
         textLabel.innerText = "Test ₹100"; textLabel.style.color = "var(--success)";
     } else {
         container.innerHTML = `<span style="font-size: 32px; opacity: 0.2;">📱</span>`;
@@ -337,9 +328,9 @@ function renderMenuUI() {
             stockIndicator = item.stockQty > 0 ? `<span class="stock-indicator green"><i></i> In Stock</span>` : `<span class="stock-indicator red"><i></i> Out of Stock</span>`;
         }
 
-        // Failsafe image parsing: Hides broken image links, shows beautiful chocolate letter instead
+        // Direct URL integration - Bypass Canvas completely
         let imageHtml = '';
-        if (item.image && item.image.startsWith('data:image')) {
+        if (item.image) {
             imageHtml = `
                 <img src="${item.image}" class="card-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                 <div class="card-img-placeholder" style="display: none; background: linear-gradient(#8D5B4C, #3B2A22); color: white;">${item.name.charAt(0).toUpperCase()}</div>
@@ -413,87 +404,40 @@ function handleItemImageUpload(event) {
     reader.readAsDataURL(file);
 }
 
-// ✨ TRIPLE-LAYER AI IMAGE FETCHER (CORS BYPASS & SMART FALLBACK) ✨
-function generateFallbackImage(name) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 400; canvas.height = 300;
-    const ctx = canvas.getContext('2d');
-    
-    // Beautiful Milk Chocolate Gradient Fallback
-    const gradient = ctx.createLinearGradient(0, 0, 400, 300);
-    gradient.addColorStop(0, '#8D5B4C'); 
-    gradient.addColorStop(1, '#3B2A22'); 
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 400, 300);
-    
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 120px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(name.charAt(0).toUpperCase(), 200, 150);
-    
-    return canvas.toDataURL('image/jpeg', 0.8);
-}
-
-async function fetchImageAsBase64(promptText) {
-    const prompt = encodeURIComponent(promptText);
-    const url = `https://image.pollinations.ai/prompt/${prompt}?width=400&height=300&nologo=true&n=1`;
-    
-    try {
-        // Layer 1: Direct Fetch (Fails if network blocks raw blob streams)
-        const res = await fetch(url);
-        if(!res.ok) throw new Error("Direct fetch failed");
-        const blob = await res.blob();
-        return await new Promise(r => { const reader = new FileReader(); reader.onloadend = () => r(reader.result); reader.readAsDataURL(blob); });
-    } catch(e1) {
-        console.log("Network blocked primary image fetch. Rerouting through proxy...");
-        try {
-            // Layer 2: Bypass network firewalls using a public proxy
-            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-            const res2 = await fetch(proxyUrl);
-            if(!res2.ok) throw new Error("Proxy fetch failed");
-            const blob2 = await res2.blob();
-            return await new Promise(r => { const reader = new FileReader(); reader.onloadend = () => r(reader.result); reader.readAsDataURL(blob2); });
-        } catch(e2) {
-            throw new Error("All image fetch methods blocked by network.");
-        }
-    }
-}
-
-async function generateAIImage() {
+// ✨ DIRECT URL FETCHER (BYPASSES ALL CORS BLOCKS) ✨
+function generateAIImage() {
     const name = document.getElementById('newItemName').value.trim();
     if (!name) return showToast("⚠️ Enter an Item Name first to generate image!");
     
     const btn = document.getElementById('btnGenerateAI');
     const preview = document.getElementById('newItemImagePreview');
     
-    btn.innerText = "⏳ Generating..."; 
+    btn.innerText = "⏳ Loading..."; 
     btn.disabled = true;
     
-    // Show a clean placeholder while generating, not raw SVG code!
-    currentItemImageBase64 = generateFallbackImage(name);
-    preview.src = currentItemImageBase64;
-    preview.style.display = "block";
-    preview.style.opacity = "0.5";
+    const promptStr = encodeURIComponent(`Delicious highly professional food photography of ${name}, bright studio lighting, top down view, white plate, minimalist background, 4k resolution`);
     
-    try {
-        const promptStr = `Delicious highly professional food photography of ${name}, bright studio lighting, top down view, white plate, minimalist background, 4k resolution`;
-        currentItemImageBase64 = await fetchImageAsBase64(promptStr);
-        preview.src = currentItemImageBase64;
-        preview.style.opacity = "1";
+    // We just save the URL directly! No Base64 conversion needed for AI images.
+    const url = `https://image.pollinations.ai/prompt/${promptStr}?width=400&height=300&nologo=true&seed=${Date.now()}`;
+    
+    currentItemImageBase64 = url; // Save URL to DB
+    preview.src = url;
+    preview.style.display = "block";
+    
+    preview.onload = () => {
         btn.innerText = "✨ AI Generate"; 
         btn.disabled = false;
-        showToast("✅ Image Generated!");
-    } catch (error) { 
-        console.warn(error.message); 
-        // Layer 3: Instant Fallback to the beautiful Letter Card
-        currentItemImageBase64 = generateFallbackImage(name);
-        preview.src = currentItemImageBase64;
-        preview.style.opacity = "1";
+        showToast("✅ Image Loaded!");
+    };
+    
+    preview.onerror = () => {
+        console.warn("AI Image blocked by network.");
+        preview.style.display = "none";
+        currentItemImageBase64 = ""; // Clear if broken
+        showToast("❌ Network blocked the image.");
         btn.innerText = "✨ AI Generate"; 
-        btn.disabled = false; 
-        showToast("⚠️ Network blocked AI. Used Smart Placeholder.");
-    }
+        btn.disabled = false;
+    };
 }
 
 function openAddMenuItemModal() {
@@ -518,10 +462,9 @@ function editMenuItem(id) {
         document.getElementById('newItemTrackStock').checked = item.trackStock || false; document.getElementById('newItemStock').style.display = item.trackStock ? 'block' : 'none'; document.getElementById('newItemStock').value = item.stockQty || '';
         
         currentItemImageBase64 = item.image || "";
-        if(currentItemImageBase64 && currentItemImageBase64.startsWith('data:image')) { 
+        if(currentItemImageBase64) { 
             document.getElementById('newItemImagePreview').src = currentItemImageBase64; 
             document.getElementById('newItemImagePreview').style.display = "block"; 
-            document.getElementById('newItemImagePreview').style.opacity = "1";
         } else { 
             document.getElementById('newItemImagePreview').style.display = "none"; 
         }
@@ -546,7 +489,7 @@ function addMenuItem() {
 
 function deleteMenuItem(id) { if(confirm("Delete this item permanently?")) { menuItems = menuItems.filter(item => item.id !== id); persistMenu(); renderMenuUI(); showToast("Deleted."); } }
 
-// ✨ AI SMART MENU ENGINE WITH FAILSAFE BACKGROUND IMAGE FETCHING ✨
+// ✨ AI SMART MENU (DIRECT URL INJECTION) ✨
 async function processAIMenu(event) {
     const file = event.target.files[0]; if (!file) return;
     const apiKey = shopProfile.openAiKey ? shopProfile.openAiKey.trim() : ""; if (!apiKey) { showToast("⚠️ Please enter your Gemini API Key in Settings first."); return; }
@@ -586,7 +529,6 @@ async function processAIMenu(event) {
 
         const base64Clean = base64Data.split(',')[1];
         
-        // Telling the AI to also write an image generation prompt for each item!
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [ { text: `Extract Categories, Items, Prices, and GST percentages (output 0 if missing). For each item, write a 5-word photography prompt. Output strictly as a JSON object: { "categories": [ { "name": "CategoryName", "items": [ { "name": "ItemName", "price": 120, "gst": 0, "image_prompt": "delicious ItemName, high quality photography" } ] } ] }` }, { inline_data: { mime_type: mimeType, data: base64Clean } } ] }], generationConfig: { response_mime_type: "application/json" } })
@@ -615,13 +557,12 @@ async function processAIMenu(event) {
     } catch (error) { console.error(error); showToast("❌ " + error.message); } finally { btn.disabled = false; btn.innerText = "📁 Upload File"; document.getElementById('aiMenuUploader').value = ''; }
 }
 
-async function confirmAiImport() {
+function confirmAiImport() {
     const btn = document.querySelector('#aiPreviewModal .btn-success');
     try {
         btn.disabled = true; btn.innerText = "⏳ Importing Data...";
         if (!pendingAiMenu || !pendingAiMenu.categories) throw new Error("No data found.");
         let itemsAdded = 0; let newCategoriesAdded = 0;
-        let itemsToFetchImagesFor = [];
 
         pendingAiMenu.categories.forEach((cat, catIndex) => {
             let catName = String(cat.name || cat.category || "Uncategorized").trim();
@@ -635,10 +576,16 @@ async function confirmAiImport() {
                     let rawGst = item.gst !== undefined ? item.gst : (item.GST !== undefined ? item.GST : 0);
 
                     if (rawName) {
-                        const newItem = { id: Date.now() + (catIndex * 100) + itemIndex + Math.floor(Math.random() * 1000), name: String(rawName).trim(), category: catName, price: parseFloat(rawPrice) || 0, gstRate: parseFloat(rawGst) || 0, trackStock: false, stockQty: 0, image: "" };
+                        let finalImgUrl = "";
+                        if (item.image_prompt) {
+                            const promptStr = encodeURIComponent(item.image_prompt);
+                            // Set the direct URL. The browser will handle downloading it natively!
+                            finalImgUrl = `https://image.pollinations.ai/prompt/${promptStr}?width=400&height=300&nologo=true&seed=${Date.now() + Math.random()}`;
+                        }
+
+                        const newItem = { id: Date.now() + (catIndex * 100) + itemIndex + Math.floor(Math.random() * 1000), name: String(rawName).trim(), category: catName, price: parseFloat(rawPrice) || 0, gstRate: parseFloat(rawGst) || 0, trackStock: false, stockQty: 0, image: finalImgUrl };
                         menuItems.push(newItem);
                         itemsAdded++;
-                        if (item.image_prompt) itemsToFetchImagesFor.push({ id: newItem.id, prompt: item.image_prompt, name: newItem.name });
                     }
                 });
             }
@@ -647,31 +594,6 @@ async function confirmAiImport() {
         persistCategories(); persistMenu(); renderCategoryDropdown(); renderCategoryFilters(); renderCategoryListUI(); renderMenuUI();
         document.getElementById('aiPreviewModal').style.display = 'none'; pendingAiMenu = null;
         showToast(`✅ Imported ${itemsAdded} items & Auto-Created ${newCategoriesAdded} categories!`);
-        
-        // 🌟 FAILSAFE BACKGROUND IMAGE FETCHING WITH PACING 🌟
-        if (itemsToFetchImagesFor.length > 0) {
-            showToast(`🤖 Downloading ${itemsToFetchImagesFor.length} images in background...`);
-            for (let info of itemsToFetchImagesFor) {
-                try {
-                    const base64 = await fetchImageAsBase64(info.prompt);
-                    const targetItem = menuItems.find(m => m.id === info.id);
-                    if (targetItem) {
-                        targetItem.image = base64;
-                        persistMenu(); renderMenuUI(); 
-                    }
-                } catch(e) { 
-                    console.warn(`Background fetch failed for ${info.name}, generating smart placeholder...`); 
-                    const targetItem = menuItems.find(m => m.id === info.id);
-                    if (targetItem) {
-                        targetItem.image = generateFallbackImage(targetItem.name);
-                        persistMenu(); renderMenuUI();
-                    }
-                }
-                // Pause for 1.5 seconds between fetches to prevent server bans!
-                await new Promise(r => setTimeout(r, 1500)); 
-            }
-            showToast(`✅ Menu Visuals fully loaded!`);
-        }
 
     } catch (error) { console.error(error); showToast("❌ Import failed: " + error.message); } finally { if (btn) { btn.disabled = false; btn.innerText = "✅ Confirm & Import"; } }
 }
@@ -805,7 +727,7 @@ function openCheckoutModal() {
     document.getElementById('checkoutModal').style.display = 'flex';
 }
 
-// ✨ HTML INVISIBLE IFRAME PRINT (LARGER CRISP QR ENABLED) ✨
+// ✨ HTML INVISIBLE IFRAME PRINT (QR ENABLED) ✨
 function executeHtmlPrint(divId) {
     return new Promise(resolve => {
         let iframe = document.getElementById('print-iframe');
@@ -814,8 +736,7 @@ function executeHtmlPrint(divId) {
         let qrScript = '';
         const qrCanvas = document.querySelector('#printQrCode canvas');
         if (qrCanvas && shopProfile.showQr && shopProfile.upiId) {
-            // Increased to 180px for standard printers
-            qrScript = `<div style="text-align:center; margin-top:15px;"><div style="font-weight:bold;font-size:14px;margin-bottom:5px;">SCAN TO PAY</div><img src="${qrCanvas.toDataURL('image/png')}" style="margin:0 auto; display:block; width:180px; height:180px; image-rendering: pixelated;"></div>`;
+            qrScript = `<div style="text-align:center; margin-top:15px;"><div style="font-weight:bold;font-size:14px;margin-bottom:5px;">SCAN TO PAY</div><img src="${qrCanvas.toDataURL('image/png')}" style="margin:0 auto;display:block;width:180px;height:180px;image-rendering:pixelated;"></div>`;
         }
         
         const content = document.getElementById(divId).innerHTML; const doc = iframe.contentWindow.document;
@@ -924,7 +845,6 @@ async function connectBluetoothPrinter() {
 async function sendEscPosToPrinter(order) {
     let gstSummary = {}; 
 
-    // ✨ Generate Hardware QR Code (256x256 perfectly maps to 8-byte thermal logic) ✨
     const qrCodeDiv = document.getElementById('printQrCode');
     qrCodeDiv.innerHTML = '';
     if (shopProfile.showQr && shopProfile.upiId) {
@@ -1006,16 +926,13 @@ async function sendEscPosToPrinter(order) {
 
     let payloads = [];
     
-    // 1. Logo
     if (shopProfile.logo) {
         const logoBytes = await getLogoBytes(shopProfile.logo);
         if (logoBytes) { payloads.push(new Uint8Array([0x1B, 0x61, 0x01])); payloads.push(logoBytes); payloads.push(new Uint8Array([0x0A])); }
     }
 
-    // 2. Text
     payloads.push(new TextEncoder().encode(receiptText));
 
-    // 3. Hardware QR Injection
     if (shopProfile.showQr && shopProfile.upiId) {
         const qrCanvas = qrCodeDiv.querySelector('canvas');
         if (qrCanvas) {
@@ -1029,7 +946,6 @@ async function sendEscPosToPrinter(order) {
         }
     }
 
-    // 4. Thank You & Cut
     payloads.push(new TextEncoder().encode(ALIGN_CENTER + 'Thank You! Visit Again\n\x0A\x0A\x0A\x0A\x1B\x6D'));
 
     let totalLength = payloads.reduce((sum, p) => sum + p.length, 0);
