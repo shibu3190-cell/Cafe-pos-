@@ -12,7 +12,6 @@ function hashString(str) {
 }
 
 const defaultPinHash = hashString("1234");
-// Added UPI Settings
 let shopProfile = { name: "The bong bhoj Terminal", address: "", fssai: "", gstin: "", tableCount: 10, logo: "", adminPinHash: defaultPinHash, startInvoiceNo: 1001, openAiKey: "", upiId: "", showQr: false };
 
 let menuItems = [ 
@@ -81,7 +80,31 @@ function updateAllUI() {
     
     if(document.getElementById('upiIdInput')) document.getElementById('upiIdInput').value = shopProfile.upiId || '';
     if(document.getElementById('enableQrCodeInput')) document.getElementById('enableQrCodeInput').checked = shopProfile.showQr || false;
+    
+    generateSettingsQRPreview(); // Initial render of settings QR
 }
+
+// ✨ LIVE QR PREVIEW ENGINE ✨
+function generateSettingsQRPreview() {
+    if (!document.getElementById('upiIdInput')) return;
+    const upiId = document.getElementById('upiIdInput').value.trim();
+    const shopName = document.getElementById('shopNameInput').value.trim() || shopProfile.name;
+    const isEnabled = document.getElementById('enableQrCodeInput').checked;
+    const container = document.getElementById('settingsQrPreview');
+    const textLabel = document.getElementById('settingsQrText');
+    
+    container.innerHTML = '';
+    
+    if (isEnabled && upiId) {
+        const upiString = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(shopName)}&am=100.00&cu=INR`;
+        new QRCode(container, { text: upiString, width: 100, height: 100, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.L });
+        textLabel.innerText = "Test ₹100"; textLabel.style.color = "var(--success)";
+    } else {
+        container.innerHTML = `<span style="font-size: 32px; opacity: 0.2;">📱</span>`;
+        textLabel.innerText = "Disabled"; textLabel.style.color = "var(--text-muted)";
+    }
+}
+window.generateSettingsQRPreview = generateSettingsQRPreview;
 
 window.addEventListener('firebaseLoaded', () => {
     if(!navigator.onLine) return; 
@@ -380,6 +403,7 @@ function handleItemImageUpload(event) {
     reader.readAsDataURL(file);
 }
 
+// ✨ FIXED AI IMAGE ENGINE ✨
 async function generateAIImage() {
     const name = document.getElementById('newItemName').value.trim();
     if (!name) return showToast("⚠️ Enter an Item Name first to generate image!");
@@ -393,32 +417,39 @@ async function generateAIImage() {
     preview.style.display = "block";
     preview.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'><rect width='80' height='80' fill='%23f4efeA'/><text x='40' y='45' font-family='sans-serif' font-size='10' font-weight='bold' text-anchor='middle' fill='%238d5b4c'>Wait...</text></svg>";
 
-    try {
-        const prompt = encodeURIComponent(`Delicious highly professional food photography of ${name}, bright studio lighting, top down view, white plate, 4k resolution`);
-        const url = `https://image.pollinations.ai/prompt/${prompt}?width=400&height=300&nologo=true`;
-        
-        const img = new Image();
-        img.crossOrigin = "Anonymous";
-        img.onload = () => {
-            const canvas = document.createElement('canvas'); 
-            canvas.width = img.width; canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
+    // Direct Image fetch via crossOrigin bypasses strict CORS blob blocks
+    const prompt = encodeURIComponent(`Delicious highly professional food photography of ${name}, bright studio lighting, top down view, white plate, minimalist background, 4k resolution`);
+    const url = `https://image.pollinations.ai/prompt/${prompt}?width=400&height=300&nologo=true&seed=${Math.floor(Math.random() * 10000)}`;
+    
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    
+    img.onload = () => {
+        const canvas = document.createElement('canvas'); 
+        canvas.width = img.width; canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        try {
             currentItemImageBase64 = canvas.toDataURL('image/jpeg', 0.8);
             preview.src = currentItemImageBase64;
             btn.innerText = "✨ AI Generate"; 
             btn.disabled = false;
             showToast("✅ Image Generated!");
-        };
-        img.onerror = () => { showToast("❌ Failed to load image from AI."); btn.innerText = "✨ AI Generate"; btn.disabled = false; };
-        img.src = url;
-    } catch (error) { 
-        console.error(error); 
+        } catch (e) {
+            console.error("Canvas export error:", e);
+            showToast("❌ Image blocked by browser security.");
+            btn.innerText = "✨ AI Generate"; btn.disabled = false;
+        }
+    };
+    
+    img.onerror = () => { 
+        console.error("Image failed to load");
         preview.style.display = "none";
-        showToast("❌ Failed to generate image."); 
-        btn.innerText = "✨ AI Generate"; 
-        btn.disabled = false; 
-    }
+        showToast("❌ Failed to load AI image."); 
+        btn.innerText = "✨ AI Generate"; btn.disabled = false; 
+    };
+    
+    img.src = url;
 }
 
 
@@ -467,7 +498,6 @@ function addMenuItem() {
 
 function deleteMenuItem(id) { if(confirm("Delete this item permanently?")) { menuItems = menuItems.filter(item => item.id !== id); persistMenu(); renderMenuUI(); showToast("Deleted."); } }
 
-// ✨ AI SMART MENU ENGINE
 async function processAIMenu(event) {
     const file = event.target.files[0]; if (!file) return;
     const apiKey = shopProfile.openAiKey ? shopProfile.openAiKey.trim() : ""; if (!apiKey) { showToast("⚠️ Please enter your Gemini API Key in Settings first."); return; }
@@ -695,7 +725,7 @@ function openCheckoutModal() {
     document.getElementById('checkoutModal').style.display = 'flex';
 }
 
-// ✨ HTML INVISIBLE IFRAME PRINT (QR ENABLED) ✨
+// ✨ HTML INVISIBLE IFRAME PRINT (LARGER QR ENABLED) ✨
 function executeHtmlPrint(divId) {
     return new Promise(resolve => {
         let iframe = document.getElementById('print-iframe');
@@ -704,7 +734,8 @@ function executeHtmlPrint(divId) {
         let qrScript = '';
         const qrCanvas = document.querySelector('#printQrCode canvas');
         if (qrCanvas && shopProfile.showQr && shopProfile.upiId) {
-            qrScript = `<div style="text-align:center; margin-top:15px;"><div style="font-weight:bold;font-size:12px;margin-bottom:5px;">SCAN TO PAY</div><img src="${qrCanvas.toDataURL('image/png')}" style="margin:0 auto;display:block;width:120px;height:120px;"></div>`;
+            // Increased dimensions for scan reliability on regular printers
+            qrScript = `<div style="text-align:center; margin-top:15px;"><div style="font-weight:bold;font-size:14px;margin-bottom:5px;">SCAN TO PAY</div><img src="${qrCanvas.toDataURL('image/png')}" style="margin:0 auto;display:block;width:180px;height:180px;"></div>`;
         }
         
         const content = document.getElementById(divId).innerHTML; const doc = iframe.contentWindow.document;
@@ -811,13 +842,14 @@ async function connectBluetoothPrinter() {
 async function sendEscPosToPrinter(order) {
     let gstSummary = {}; 
 
-    // Generate QR First
+    // ✨ Generate Offline QR Code Blob First ✨
     const qrCodeDiv = document.getElementById('printQrCode');
     qrCodeDiv.innerHTML = '';
     if (shopProfile.showQr && shopProfile.upiId) {
         const upiString = `upi://pay?pa=${shopProfile.upiId}&pn=${encodeURIComponent(shopProfile.name)}&am=${order.amount.toFixed(2)}&cu=INR`;
-        new QRCode(qrCodeDiv, { text: upiString, width: 120, height: 120, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.L });
-        await new Promise(r => setTimeout(r, 50)); // Allow canvas to render
+        // Up-scaled to 240 for easier mobile camera scanning on printed receipts
+        new QRCode(qrCodeDiv, { text: upiString, width: 240, height: 240, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.L });
+        await new Promise(r => setTimeout(r, 50)); 
     }
 
     if (!printCharacteristic) {
@@ -893,14 +925,16 @@ async function sendEscPosToPrinter(order) {
 
     let payloads = [];
     
+    // 1. Logo
     if (shopProfile.logo) {
         const logoBytes = await getLogoBytes(shopProfile.logo);
         if (logoBytes) { payloads.push(new Uint8Array([0x1B, 0x61, 0x01])); payloads.push(logoBytes); payloads.push(new Uint8Array([0x0A])); }
     }
 
+    // 2. Text
     payloads.push(new TextEncoder().encode(receiptText));
 
-    // ✨ HARDWARE QR CODE BYTE ENGINE ✨
+    // 3. Hardware QR Injection
     if (shopProfile.showQr && shopProfile.upiId) {
         const qrCanvas = qrCodeDiv.querySelector('canvas');
         if (qrCanvas) {
@@ -914,6 +948,7 @@ async function sendEscPosToPrinter(order) {
         }
     }
 
+    // 4. Thank You & Cut
     payloads.push(new TextEncoder().encode(ALIGN_CENTER + 'Thank You! Visit Again\n\x0A\x0A\x0A\x0A\x1B\x6D'));
 
     let totalLength = payloads.reduce((sum, p) => sum + p.length, 0);
