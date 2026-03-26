@@ -81,7 +81,7 @@ function updateAllUI() {
     if(document.getElementById('upiIdInput')) document.getElementById('upiIdInput').value = shopProfile.upiId || '';
     if(document.getElementById('enableQrCodeInput')) document.getElementById('enableQrCodeInput').checked = shopProfile.showQr || false;
     
-    generateSettingsQRPreview(); // Initial render of settings QR
+    generateSettingsQRPreview(); 
 }
 
 // ✨ LIVE QR PREVIEW ENGINE ✨
@@ -97,7 +97,7 @@ function generateSettingsQRPreview() {
     
     if (isEnabled && upiId) {
         const upiString = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(shopName)}&am=100.00&cu=INR`;
-        new QRCode(container, { text: upiString, width: 100, height: 100, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.L });
+        new QRCode(container, { text: upiString, width: 100, height: 100, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.M });
         textLabel.innerText = "Test ₹100"; textLabel.style.color = "var(--success)";
     } else {
         container.innerHTML = `<span style="font-size: 32px; opacity: 0.2;">📱</span>`;
@@ -403,7 +403,7 @@ function handleItemImageUpload(event) {
     reader.readAsDataURL(file);
 }
 
-// ✨ FIXED AI IMAGE ENGINE ✨
+// ✨ FIXED AI IMAGE ENGINE (DIRECT FETCH WITH BLOB) ✨
 async function generateAIImage() {
     const name = document.getElementById('newItemName').value.trim();
     if (!name) return showToast("⚠️ Enter an Item Name first to generate image!");
@@ -411,45 +411,33 @@ async function generateAIImage() {
     const btn = document.getElementById('btnGenerateAI');
     const preview = document.getElementById('newItemImagePreview');
     
-    btn.innerText = "⏳ Generating..."; 
-    btn.disabled = true;
-    
+    btn.innerText = "⏳ Generating..."; btn.disabled = true;
     preview.style.display = "block";
     preview.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'><rect width='80' height='80' fill='%23f4efeA'/><text x='40' y='45' font-family='sans-serif' font-size='10' font-weight='bold' text-anchor='middle' fill='%238d5b4c'>Wait...</text></svg>";
 
-    // Direct Image fetch via crossOrigin bypasses strict CORS blob blocks
-    const prompt = encodeURIComponent(`Delicious highly professional food photography of ${name}, bright studio lighting, top down view, white plate, minimalist background, 4k resolution`);
-    const url = `https://image.pollinations.ai/prompt/${prompt}?width=400&height=300&nologo=true&seed=${Math.floor(Math.random() * 10000)}`;
-    
-    const img = new Image();
-    img.crossOrigin = "Anonymous";
-    
-    img.onload = () => {
-        const canvas = document.createElement('canvas'); 
-        canvas.width = img.width; canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
-        try {
-            currentItemImageBase64 = canvas.toDataURL('image/jpeg', 0.8);
+    try {
+        const prompt = encodeURIComponent(`Delicious highly professional food photography of ${name}, bright studio lighting, top down view, white plate, minimalist background, 4k resolution`);
+        // Using direct fetch to blob bypasses strict canvas CORS issues
+        const url = `https://image.pollinations.ai/prompt/${prompt}?width=400&height=300&nologo=true&seed=${Math.floor(Math.random() * 10000)}`;
+        
+        const response = await fetch(url);
+        if(!response.ok) throw new Error("Network error fetching image.");
+        
+        const blob = await response.blob();
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            currentItemImageBase64 = reader.result;
             preview.src = currentItemImageBase64;
-            btn.innerText = "✨ AI Generate"; 
-            btn.disabled = false;
-            showToast("✅ Image Generated!");
-        } catch (e) {
-            console.error("Canvas export error:", e);
-            showToast("❌ Image blocked by browser security.");
             btn.innerText = "✨ AI Generate"; btn.disabled = false;
-        }
-    };
-    
-    img.onerror = () => { 
-        console.error("Image failed to load");
+            showToast("✅ Image Generated!");
+        };
+        reader.readAsDataURL(blob);
+    } catch (error) { 
+        console.error(error); 
         preview.style.display = "none";
-        showToast("❌ Failed to load AI image."); 
+        showToast("❌ Failed to generate image."); 
         btn.innerText = "✨ AI Generate"; btn.disabled = false; 
-    };
-    
-    img.src = url;
+    }
 }
 
 
@@ -498,6 +486,7 @@ function addMenuItem() {
 
 function deleteMenuItem(id) { if(confirm("Delete this item permanently?")) { menuItems = menuItems.filter(item => item.id !== id); persistMenu(); renderMenuUI(); showToast("Deleted."); } }
 
+// ✨ AI SMART MENU ENGINE (WITH AUTO-IMAGE FETCH) ✨
 async function processAIMenu(event) {
     const file = event.target.files[0]; if (!file) return;
     const apiKey = shopProfile.openAiKey ? shopProfile.openAiKey.trim() : ""; if (!apiKey) { showToast("⚠️ Please enter your Gemini API Key in Settings first."); return; }
@@ -536,9 +525,11 @@ async function processAIMenu(event) {
         }
 
         const base64Clean = base64Data.split(',')[1];
+        
+        // Update prompt to ask for image_prompt
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [ { text: `Extract Categories, Items, Prices, and GST percentages (output 0 if missing). Output strictly as a JSON object: { "categories": [ { "name": "CategoryName", "items": [ { "name": "ItemName", "price": 120, "gst": 0 } ] } ] }` }, { inline_data: { mime_type: mimeType, data: base64Clean } } ] }], generationConfig: { response_mime_type: "application/json" } })
+            body: JSON.stringify({ contents: [{ parts: [ { text: `Extract Categories, Items, Prices, and GST percentages (output 0 if missing). For each item, write a 5-word photography prompt. Output strictly as a JSON object: { "categories": [ { "name": "CategoryName", "items": [ { "name": "ItemName", "price": 120, "gst": 0, "image_prompt": "delicious ItemName, high quality photography" } ] } ] }` }, { inline_data: { mime_type: mimeType, data: base64Clean } } ] }], generationConfig: { response_mime_type: "application/json" } })
         });
 
         const data = await response.json();
@@ -564,12 +555,13 @@ async function processAIMenu(event) {
     } catch (error) { console.error(error); showToast("❌ " + error.message); } finally { btn.disabled = false; btn.innerText = "📁 Upload File"; document.getElementById('aiMenuUploader').value = ''; }
 }
 
-function confirmAiImport() {
+async function confirmAiImport() {
     const btn = document.querySelector('#aiPreviewModal .btn-success');
     try {
         btn.disabled = true; btn.innerText = "⏳ Importing Data...";
         if (!pendingAiMenu || !pendingAiMenu.categories) throw new Error("No data found.");
         let itemsAdded = 0; let newCategoriesAdded = 0;
+        let itemsToFetchImagesFor = [];
 
         pendingAiMenu.categories.forEach((cat, catIndex) => {
             let catName = String(cat.name || cat.category || "Uncategorized").trim();
@@ -583,8 +575,13 @@ function confirmAiImport() {
                     let rawGst = item.gst !== undefined ? item.gst : (item.GST !== undefined ? item.GST : 0);
 
                     if (rawName) {
-                        menuItems.push({ id: Date.now() + (catIndex * 100) + itemIndex + Math.floor(Math.random() * 1000), name: String(rawName).trim(), category: catName, price: parseFloat(rawPrice) || 0, gstRate: parseFloat(rawGst) || 0, trackStock: false, stockQty: 0, image: "" });
+                        const newItem = { id: Date.now() + (catIndex * 100) + itemIndex + Math.floor(Math.random() * 1000), name: String(rawName).trim(), category: catName, price: parseFloat(rawPrice) || 0, gstRate: parseFloat(rawGst) || 0, trackStock: false, stockQty: 0, image: "" };
+                        menuItems.push(newItem);
                         itemsAdded++;
+                        
+                        if (item.image_prompt) {
+                            itemsToFetchImagesFor.push({ id: newItem.id, prompt: item.image_prompt });
+                        }
                     }
                 });
             }
@@ -593,6 +590,30 @@ function confirmAiImport() {
         persistCategories(); persistMenu(); renderCategoryDropdown(); renderCategoryFilters(); renderCategoryListUI(); renderMenuUI();
         document.getElementById('aiPreviewModal').style.display = 'none'; pendingAiMenu = null;
         showToast(`✅ Imported ${itemsAdded} items & Auto-Created ${newCategoriesAdded} categories!`);
+        
+        // Background Image Fetching
+        if (itemsToFetchImagesFor.length > 0) {
+            showToast(`🤖 Downloading ${itemsToFetchImagesFor.length} images in background...`);
+            for (let info of itemsToFetchImagesFor) {
+                try {
+                    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(info.prompt)}?width=400&height=300&nologo=true&seed=${Math.floor(Math.random() * 10000)}`;
+                    const res = await fetch(url);
+                    const blob = await res.blob();
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const targetItem = menuItems.find(m => m.id === info.id);
+                        if (targetItem) {
+                            targetItem.image = reader.result;
+                            persistMenu();
+                            renderMenuUI(); // Refresh UI dynamically as images load
+                        }
+                    };
+                    reader.readAsDataURL(blob);
+                    await new Promise(r => setTimeout(r, 1000)); // Rate limit to avoid bans
+                } catch(e) { console.error("Silent image fetch failed", e); }
+            }
+        }
+
     } catch (error) { console.error(error); showToast("❌ Import failed: " + error.message); } finally { if (btn) { btn.disabled = false; btn.innerText = "✅ Confirm & Import"; } }
 }
 
@@ -725,7 +746,7 @@ function openCheckoutModal() {
     document.getElementById('checkoutModal').style.display = 'flex';
 }
 
-// ✨ HTML INVISIBLE IFRAME PRINT (LARGER QR ENABLED) ✨
+// ✨ HTML INVISIBLE IFRAME PRINT (LARGER CRISP QR ENABLED) ✨
 function executeHtmlPrint(divId) {
     return new Promise(resolve => {
         let iframe = document.getElementById('print-iframe');
@@ -734,8 +755,8 @@ function executeHtmlPrint(divId) {
         let qrScript = '';
         const qrCanvas = document.querySelector('#printQrCode canvas');
         if (qrCanvas && shopProfile.showQr && shopProfile.upiId) {
-            // Increased dimensions for scan reliability on regular printers
-            qrScript = `<div style="text-align:center; margin-top:15px;"><div style="font-weight:bold;font-size:14px;margin-bottom:5px;">SCAN TO PAY</div><img src="${qrCanvas.toDataURL('image/png')}" style="margin:0 auto;display:block;width:180px;height:180px;"></div>`;
+            // Crisp CSS rendering applied
+            qrScript = `<div style="text-align:center; margin-top:15px;"><div style="font-weight:bold;font-size:14px;margin-bottom:5px;">SCAN TO PAY</div><img src="${qrCanvas.toDataURL('image/png')}" style="margin:0 auto; display:block; width:180px; height:180px; image-rendering: pixelated;"></div>`;
         }
         
         const content = document.getElementById(divId).innerHTML; const doc = iframe.contentWindow.document;
@@ -789,7 +810,11 @@ async function getLogoBytes(base64Image) {
             if (width > maxWidth) { const ratio = maxWidth / width; width = maxWidth; height = height * ratio; }
             width = Math.floor(width / 8) * 8; height = Math.floor(height);
             canvas.width = width; canvas.height = height;
-            ctx.fillStyle = 'white'; ctx.fillRect(0, 0, width, height); ctx.drawImage(img, 0, 0, width, height);
+            ctx.fillStyle = 'white'; ctx.fillRect(0, 0, width, height); 
+            
+            ctx.imageSmoothingEnabled = false; // ✨ Ensured crisp block edges for QR codes! ✨
+            ctx.drawImage(img, 0, 0, width, height);
+            
             const imgData = ctx.getImageData(0, 0, width, height).data; const widthBytes = width / 8;
             const data = new Uint8Array(8 + (widthBytes * height));
             data[0] = 0x1D; data[1] = 0x76; data[2] = 0x30; data[3] = 0x00;
@@ -842,13 +867,12 @@ async function connectBluetoothPrinter() {
 async function sendEscPosToPrinter(order) {
     let gstSummary = {}; 
 
-    // ✨ Generate Offline QR Code Blob First ✨
+    // Generate QR First (Multiple of 8 for pristine ESC/POS printing: 200x200)
     const qrCodeDiv = document.getElementById('printQrCode');
     qrCodeDiv.innerHTML = '';
     if (shopProfile.showQr && shopProfile.upiId) {
         const upiString = `upi://pay?pa=${shopProfile.upiId}&pn=${encodeURIComponent(shopProfile.name)}&am=${order.amount.toFixed(2)}&cu=INR`;
-        // Up-scaled to 240 for easier mobile camera scanning on printed receipts
-        new QRCode(qrCodeDiv, { text: upiString, width: 240, height: 240, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.L });
+        new QRCode(qrCodeDiv, { text: upiString, width: 200, height: 200, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.M });
         await new Promise(r => setTimeout(r, 50)); 
     }
 
@@ -1009,4 +1033,4 @@ document.addEventListener('keydown', function(event) {
     }
 });
 
-window.activateSoftware = activateSoftware; window.loginAsStaff = loginAsStaff; window.loginAsAdmin = loginAsAdmin; window.selectPayment = selectPayment; window.confirmCheckout = confirmCheckout; window.saveEditedOrder = saveEditedOrder; window.switchTab = switchTab; window.installApp = installApp; window.lockSystem = lockSystem; window.renderMenuUI = renderMenuUI; window.bookTable = bookTable; window.sendToKitchen = sendToKitchen; window.markServed = markServed; window.openCheckoutModal = openCheckoutModal; window.clearTable = clearTable; window.addMenuItem = addMenuItem; window.addExpense = addExpense; window.editExpense = editExpense; window.deleteExpense = deleteExpense; window.renderStatements = renderStatements; window.exportHistoryToExcel = exportHistoryToExcel; window.loadLogo = loadLogo; window.saveSettings = saveSettings; window.testThermalPrinter = testThermalPrinter; window.factoryReset = factoryReset; window.filterMenu = filterMenu; window.addToCart = addToCart; window.editMenuItem = editMenuItem; window.deleteMenuItem = deleteMenuItem; window.openEditOrderModal = openEditOrderModal; window.reprintReceipt = reprintReceipt; window.selectTable = selectTable; window.modifyQty = modifyQty; window.connectBluetoothPrinter = connectBluetoothPrinter; window.printKitchenTicket = printKitchenTicket; window.addCategory = addCategory; window.deleteCategory = deleteCategory; window.processAIMenu = processAIMenu; window.confirmAiImport = confirmAiImport; window.openAddMenuItemModal = openAddMenuItemModal; window.toggleCartDrawer = toggleCartDrawer; window.generateAIImage = generateAIImage; window.handleItemImageUpload = handleItemImageUpload;
+window.activateSoftware = activateSoftware; window.loginAsStaff = loginAsStaff; window.loginAsAdmin = loginAsAdmin; window.selectPayment = selectPayment; window.confirmCheckout = confirmCheckout; window.saveEditedOrder = saveEditedOrder; window.switchTab = switchTab; window.installApp = installApp; window.lockSystem = lockSystem; window.renderMenuUI = renderMenuUI; window.bookTable = bookTable; window.sendToKitchen = sendToKitchen; window.markServed = markServed; window.openCheckoutModal = openCheckoutModal; window.clearTable = clearTable; window.addMenuItem = addMenuItem; window.addExpense = addExpense; window.editExpense = editExpense; window.deleteExpense = deleteExpense; window.renderStatements = renderStatements; window.exportHistoryToExcel = exportHistoryToExcel; window.loadLogo = loadLogo; window.saveSettings = saveSettings; window.testThermalPrinter = testThermalPrinter; window.factoryReset = factoryReset; window.filterMenu = filterMenu; window.addToCart = addToCart; window.editMenuItem = editMenuItem; window.deleteMenuItem = deleteMenuItem; window.openEditOrderModal = openEditOrderModal; window.reprintReceipt = reprintReceipt; window.selectTable = selectTable; window.modifyQty = modifyQty; window.connectBluetoothPrinter = connectBluetoothPrinter; window.printKitchenTicket = printKitchenTicket; window.addCategory = addCategory; window.deleteCategory = deleteCategory; window.processAIMenu = processAIMenu; window.confirmAiImport = confirmAiImport; window.openAddMenuItemModal = openAddMenuItemModal; window.toggleCartDrawer = toggleCartDrawer; window.generateAIImage = generateAIImage; window.handleItemImageUpload = handleItemImageUpload; window.generateSettingsQRPreview = generateSettingsQRPreview;
