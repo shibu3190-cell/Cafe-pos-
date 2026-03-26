@@ -12,20 +12,22 @@ function hashString(str) {
 }
 
 const defaultPinHash = hashString("1234");
-let shopProfile = { name: "The bong bhoj Terminal", address: "", fssai: "", gstin: "", tableCount: 10, logo: "", adminPinHash: defaultPinHash, startInvoiceNo: 1001, openAiKey: "" };
+// Added UPI Settings
+let shopProfile = { name: "The bong bhoj Terminal", address: "", fssai: "", gstin: "", tableCount: 10, logo: "", adminPinHash: defaultPinHash, startInvoiceNo: 1001, openAiKey: "", upiId: "", showQr: false };
 
 let menuItems = [ 
-    { id: 1, name: "Espresso", price: 80.00, category: "Tea/Coffee", gstRate: 5, trackStock: true, stockQty: 28 }, 
-    { id: 2, name: "Chicken Sandwich", price: 150.00, category: "Food", gstRate: 5, trackStock: false, stockQty: 0, badge: "Popular" },
-    { id: 3, name: "Gold flake", price: 8.00, category: "Cigarettes", gstRate: 0, trackStock: true, stockQty: 28 },
-    { id: 4, name: "Black Coffee", price: 80.00, category: "Tea/Coffee", gstRate: 5, trackStock: true, stockQty: 100 },
-    { id: 5, name: "Veg Biryani", price: 150.00, category: "Food", gstRate: 5, trackStock: true, stockQty: 10 }
+    { id: 1, name: "Espresso", price: 80.00, category: "Tea/Coffee", gstRate: 5, trackStock: true, stockQty: 28, image: "" }, 
+    { id: 2, name: "Chicken Sandwich", price: 150.00, category: "Food", gstRate: 5, trackStock: false, stockQty: 0, badge: "Popular", image: "" },
+    { id: 3, name: "Gold flake", price: 8.00, category: "Cigarettes", gstRate: 0, trackStock: true, stockQty: 28, image: "" },
+    { id: 4, name: "Black Coffee", price: 80.00, category: "Tea/Coffee", gstRate: 5, trackStock: true, stockQty: 100, image: "" },
+    { id: 5, name: "Veg Biryani", price: 150.00, category: "Food", gstRate: 5, trackStock: true, stockQty: 10, image: "" }
 ];
 
 let orderHistory = []; let dailyExpenses = []; let tablesInfo = {}; let menuCategories = ["All", "Tea/Coffee", "Food", "Cigarettes", "Other"];
 
 const myClientID = localStorage.getItem('cafeLicenseKey') || 'unregistered';
 let currentRole = null; let activeTable = 1; let activeCategory = "All"; let editingMenuItemId = null; let editingExpenseId = null; let syncQueue = [];
+let currentItemImageBase64 = "";
 
 const idb = {
     db: null, initPromise: null,
@@ -76,6 +78,9 @@ function updateAllUI() {
     document.getElementById('fssaiInput').value = shopProfile.fssai || ''; document.getElementById('gstinInput').value = shopProfile.gstin || '';
     document.getElementById('tableCountInput').value = shopProfile.tableCount || 10; document.getElementById('startInvoiceInput').value = shopProfile.startInvoiceNo || 1001; 
     document.getElementById('openAiKeyInput').value = shopProfile.openAiKey || '';
+    
+    if(document.getElementById('upiIdInput')) document.getElementById('upiIdInput').value = shopProfile.upiId || '';
+    if(document.getElementById('enableQrCodeInput')) document.getElementById('enableQrCodeInput').checked = shopProfile.showQr || false;
 }
 
 window.addEventListener('firebaseLoaded', () => {
@@ -225,6 +230,10 @@ function saveSettings() {
     shopProfile.name = document.getElementById('shopNameInput').value; shopProfile.address = document.getElementById('shopAddressInput').value; shopProfile.fssai = document.getElementById('fssaiInput').value; shopProfile.gstin = document.getElementById('gstinInput').value; shopProfile.tableCount = parseInt(document.getElementById('tableCountInput').value); const newStartNo = parseInt(document.getElementById('startInvoiceInput').value); if(newStartNo) shopProfile.startInvoiceNo = newStartNo;
     if(document.getElementById('adminPinSetup').value.length >= 4) { shopProfile.adminPinHash = hashString(document.getElementById('adminPinSetup').value); document.getElementById('adminPinSetup').value = ''; }
     shopProfile.openAiKey = document.getElementById('openAiKeyInput').value;
+    
+    if(document.getElementById('upiIdInput')) shopProfile.upiId = document.getElementById('upiIdInput').value.trim();
+    if(document.getElementById('enableQrCodeInput')) shopProfile.showQr = document.getElementById('enableQrCodeInput').checked;
+    
     for(let i = 1; i <= shopProfile.tableCount; i++) if(!tablesInfo[i]) tablesInfo[i] = { items: [], status: 'empty', savedTime: null, lastReminder: null };
     persistProfile(); persistTables(); showToast("Settings Saved!"); updateProfileVisuals();
 }
@@ -304,25 +313,33 @@ function renderMenuUI() {
             stockIndicator = item.stockQty > 0 ? `<span class="stock-indicator green"><i></i> In Stock</span>` : `<span class="stock-indicator red"><i></i> Out of Stock</span>`;
         }
 
+        let imageHtml = item.image ? `<img src="${item.image}" class="card-img">` : `<div class="card-img-placeholder">${item.name.charAt(0).toUpperCase()}</div>`;
+
         posGrid.innerHTML += `
         <div class="menu-card" onclick="addToCart(${item.id}, event)">
-            ${popularBadge}
-            <div class="card-top-row">
-                <span class="cat-label">${item.category}</span>
-                ${item.trackStock && item.stockQty > 0 ? `<span class="stock-pill">+${item.stockQty}pc</span>` : ''}
+            <div class="card-img-wrapper">
+                ${imageHtml}
+                ${popularBadge}
+                ${item.trackStock && item.stockQty <= 5 && item.stockQty > 0 ? `<div class="stock-badge low">${item.stockQty} left</div>` : (item.trackStock && item.stockQty > 5 ? `<div class="stock-badge">${item.stockQty} left</div>` : '')}
             </div>
-            <div class="name">${item.name}</div>
-            <div class="card-bottom-row">
-                <div class="card-price-col">
-                    <span class="price">₹ ${item.price}</span>
-                    ${stockIndicator}
+            <div class="card-content">
+                <div class="card-top-row">
+                    <span class="cat-label">${item.category}</span>
+                    ${item.trackStock && item.stockQty > 0 ? `<span class="stock-pill">+${item.stockQty}pc</span>` : ''}
                 </div>
-                <div id="menu-action-wrap-${item.id}"></div>
+                <div class="name">${item.name}</div>
+                <div class="card-bottom-row">
+                    <div class="card-price-col">
+                        <span class="price">₹ ${item.price}</span>
+                        ${stockIndicator}
+                    </div>
+                    <div id="menu-action-wrap-${item.id}"></div>
+                </div>
             </div>
         </div>`;
     });
     syncMenuUIQuantities(); 
-    document.getElementById('menuTableBody').innerHTML = menuItems.map(item => `<tr><td>${item.name}</td><td>${item.category}</td><td>₹${item.price.toFixed(2)}</td><td>${item.gstRate}%</td><td>${item.trackStock ? item.stockQty : '∞'}</td><td><button class="btn btn-outline" style="padding: 6px 10px; font-size: 13px;" onclick="editMenuItem(${item.id})">Edit</button><button class="btn btn-danger" style="padding: 6px 10px; font-size: 13px;" onclick="deleteMenuItem(${item.id})">Del</button></td></tr>`).join('');
+    document.getElementById('menuTableBody').innerHTML = menuItems.map(item => `<tr><td>${item.image ? '🖼️' : '📄'}</td><td>${item.name}</td><td>${item.category}</td><td>₹${item.price.toFixed(2)}</td><td>${item.gstRate}%</td><td>${item.trackStock ? item.stockQty : '∞'}</td><td><button class="btn btn-outline" style="padding: 6px 10px; font-size: 13px;" onclick="editMenuItem(${item.id})">Edit</button><button class="btn btn-danger" style="padding: 6px 10px; font-size: 13px;" onclick="deleteMenuItem(${item.id})">Del</button></td></tr>`).join('');
 }
 
 function syncMenuUIQuantities() {
@@ -344,11 +361,77 @@ function syncMenuUIQuantities() {
     });
 }
 
+function handleItemImageUpload(event) {
+    const file = event.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
+            const MAX_DIM = 300; let w = img.width, h = img.height;
+            if (w > h && w > MAX_DIM) { h *= MAX_DIM / w; w = MAX_DIM; } else if (h > MAX_DIM) { w *= MAX_DIM / h; h = MAX_DIM; }
+            canvas.width = w; canvas.height = h; ctx.drawImage(img, 0, 0, w, h);
+            currentItemImageBase64 = canvas.toDataURL('image/jpeg', 0.7);
+            document.getElementById('newItemImagePreview').src = currentItemImageBase64;
+            document.getElementById('newItemImagePreview').style.display = "block";
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+async function generateAIImage() {
+    const name = document.getElementById('newItemName').value.trim();
+    if (!name) return showToast("⚠️ Enter an Item Name first to generate image!");
+    
+    const btn = document.getElementById('btnGenerateAI');
+    const preview = document.getElementById('newItemImagePreview');
+    
+    btn.innerText = "⏳ Generating..."; 
+    btn.disabled = true;
+    
+    preview.style.display = "block";
+    preview.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'><rect width='80' height='80' fill='%23f4efeA'/><text x='40' y='45' font-family='sans-serif' font-size='10' font-weight='bold' text-anchor='middle' fill='%238d5b4c'>Wait...</text></svg>";
+
+    try {
+        const prompt = encodeURIComponent(`Delicious highly professional food photography of ${name}, bright studio lighting, top down view, white plate, 4k resolution`);
+        const url = `https://image.pollinations.ai/prompt/${prompt}?width=400&height=300&nologo=true`;
+        
+        const img = new Image();
+        img.crossOrigin = "Anonymous";
+        img.onload = () => {
+            const canvas = document.createElement('canvas'); 
+            canvas.width = img.width; canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            currentItemImageBase64 = canvas.toDataURL('image/jpeg', 0.8);
+            preview.src = currentItemImageBase64;
+            btn.innerText = "✨ AI Generate"; 
+            btn.disabled = false;
+            showToast("✅ Image Generated!");
+        };
+        img.onerror = () => { showToast("❌ Failed to load image from AI."); btn.innerText = "✨ AI Generate"; btn.disabled = false; };
+        img.src = url;
+    } catch (error) { 
+        console.error(error); 
+        preview.style.display = "none";
+        showToast("❌ Failed to generate image."); 
+        btn.innerText = "✨ AI Generate"; 
+        btn.disabled = false; 
+    }
+}
+
+
 function openAddMenuItemModal() {
     editingMenuItemId = null; renderCategoryDropdown();
     document.getElementById('menuFormTitle').innerText = "Add New Menu Item"; document.getElementById('addMenuBtn').innerText = "💾 Save Item";
     document.getElementById('newItemName').value = ''; document.getElementById('newItemPrice').value = ''; document.getElementById('newItemGst').value = '0';
     document.getElementById('newItemTrackStock').checked = false; document.getElementById('newItemStock').style.display = 'none'; document.getElementById('newItemStock').value = '';
+    
+    currentItemImageBase64 = ""; 
+    document.getElementById('newItemImagePreview').src = ""; 
+    document.getElementById('newItemImagePreview').style.display = "none";
+    
     document.getElementById('menuItemModal').style.display = 'flex'; setTimeout(() => { document.getElementById('newItemName').focus(); }, 100);
 }
 
@@ -359,6 +442,11 @@ function editMenuItem(id) {
         document.getElementById('newItemName').value = item.name; document.getElementById('newItemCategory').value = item.category;
         document.getElementById('newItemPrice').value = item.price; document.getElementById('newItemGst').value = item.gstRate || 0;
         document.getElementById('newItemTrackStock').checked = item.trackStock || false; document.getElementById('newItemStock').style.display = item.trackStock ? 'block' : 'none'; document.getElementById('newItemStock').value = item.stockQty || '';
+        
+        currentItemImageBase64 = item.image || "";
+        if(currentItemImageBase64) { document.getElementById('newItemImagePreview').src = currentItemImageBase64; document.getElementById('newItemImagePreview').style.display = "block"; } 
+        else { document.getElementById('newItemImagePreview').style.display = "none"; }
+        
         editingMenuItemId = id; document.getElementById('menuFormTitle').innerText = "Edit Menu Item"; document.getElementById('addMenuBtn').innerText = "💾 Update Item"; document.getElementById('menuItemModal').style.display = 'flex';
     }
 }
@@ -370,9 +458,9 @@ function addMenuItem() {
     if(name && !isNaN(price)) { 
         if (editingMenuItemId) {
             const index = menuItems.findIndex(i => i.id === editingMenuItemId);
-            if(index > -1) { menuItems[index] = { id: editingMenuItemId, name, category, price, gstRate, trackStock, stockQty }; }
+            if(index > -1) { menuItems[index] = { id: editingMenuItemId, name, category, price, gstRate, trackStock, stockQty, image: currentItemImageBase64 }; }
             showToast("✅ Item updated!");
-        } else { menuItems.push({ id: Date.now(), name, category, price, gstRate, trackStock, stockQty }); showToast("✅ Item added!"); }
+        } else { menuItems.push({ id: Date.now(), name, category, price, gstRate, trackStock, stockQty, image: currentItemImageBase64 }); showToast("✅ Item added!"); }
         persistMenu(); renderMenuUI(); document.getElementById('menuItemModal').style.display = 'none';
     } else { showToast("⚠️ Name and Price required."); }
 }
@@ -465,7 +553,7 @@ function confirmAiImport() {
                     let rawGst = item.gst !== undefined ? item.gst : (item.GST !== undefined ? item.GST : 0);
 
                     if (rawName) {
-                        menuItems.push({ id: Date.now() + (catIndex * 100) + itemIndex + Math.floor(Math.random() * 1000), name: String(rawName).trim(), category: catName, price: parseFloat(rawPrice) || 0, gstRate: parseFloat(rawGst) || 0, trackStock: false, stockQty: 0 });
+                        menuItems.push({ id: Date.now() + (catIndex * 100) + itemIndex + Math.floor(Math.random() * 1000), name: String(rawName).trim(), category: catName, price: parseFloat(rawPrice) || 0, gstRate: parseFloat(rawGst) || 0, trackStock: false, stockQty: 0, image: "" });
                         itemsAdded++;
                     }
                 });
@@ -583,33 +671,12 @@ function toggleCartDrawer() {
     if (drawer.classList.contains('open')) overlay.classList.add('show'); else overlay.classList.remove('show');
 }
 
-// ✨ AUTOMATIC TIMER LOGIC ✨
-function markServed() { 
-    let tInfo = tablesInfo[activeTable]; if(tInfo.items.length === 0) return showToast("Table empty!"); 
-    tInfo.status = 'served'; tInfo.lastReminder = Date.now(); persistTables(); syncTableUI(); 
-    document.getElementById('cartDrawer').classList.remove('open'); document.getElementById('cartDrawerOverlay').classList.remove('show');
-    showToast(`Table ${activeTable} served. Timer started.`); 
-}
-
-setInterval(() => { 
-    const now = Date.now(); let needsSync = false; 
-    for(let i = 1; i <= shopProfile.tableCount; i++) { 
-        let tInfo = tablesInfo[i]; 
-        if(tInfo.status === 'served' || tInfo.status === 'alert') { 
-            if(tInfo.lastReminder && (now - tInfo.lastReminder) >= ALERT_THRESHOLD_MS) { 
-                tInfo.status = 'alert'; tInfo.lastReminder = now; needsSync = true; showToast(`⚠️ Table ${i} unpaid!`); 
-            } 
-        } 
-    } 
-    if(needsSync) { persistTables(); syncTableUI(); } 
-}, 5000); 
+function markServed() { let tInfo = tablesInfo[activeTable]; if(tInfo.items.length === 0) return showToast("Table empty!"); tInfo.status = 'served'; tInfo.lastReminder = Date.now(); persistTables(); syncTableUI(); document.getElementById('cartDrawer').classList.remove('open'); document.getElementById('cartDrawerOverlay').classList.remove('show'); showToast(`Table ${activeTable} served. Timer started.`); }
+setInterval(() => { const now = Date.now(); let needsSync = false; for(let i = 1; i <= shopProfile.tableCount; i++) { let tInfo = tablesInfo[i]; if(tInfo.status === 'served' || tInfo.status === 'alert') { if(tInfo.lastReminder && (now - tInfo.lastReminder) >= ALERT_THRESHOLD_MS) { tInfo.status = 'alert'; tInfo.lastReminder = now; needsSync = true; showToast(`⚠️ Table ${i} unpaid!`); } } } if(needsSync) { persistTables(); syncTableUI(); } }, 5000); 
 
 function sendToKitchen() { 
     let tInfo = tablesInfo[activeTable]; if(tInfo.items.length === 0) return showToast("Nothing to send!"); 
-    tInfo.status = 'saved'; persistTables(); syncTableUI(); 
-    document.getElementById('kotTableNoDisplay').innerText = activeTable; 
-    document.getElementById('cartDrawer').classList.remove('open'); document.getElementById('cartDrawerOverlay').classList.remove('show');
-    document.getElementById('kotModal').style.display = 'flex';
+    tInfo.status = 'saved'; persistTables(); syncTableUI(); document.getElementById('kotTableNoDisplay').innerText = activeTable; document.getElementById('cartDrawer').classList.remove('open'); document.getElementById('cartDrawerOverlay').classList.remove('show'); document.getElementById('kotModal').style.display = 'flex';
 }
 
 function selectPayment(mode, context) {
@@ -628,20 +695,26 @@ function openCheckoutModal() {
     document.getElementById('checkoutModal').style.display = 'flex';
 }
 
-// ✨ INVISIBLE IFRAME PRINT FALLBACK ✨
+// ✨ HTML INVISIBLE IFRAME PRINT (QR ENABLED) ✨
 function executeHtmlPrint(divId) {
     return new Promise(resolve => {
         let iframe = document.getElementById('print-iframe');
         if (!iframe) { iframe = document.createElement('iframe'); iframe.id = 'print-iframe'; iframe.style.position = 'fixed'; iframe.style.right = '0'; iframe.style.bottom = '0'; iframe.style.width = '0'; iframe.style.height = '0'; iframe.style.border = '0'; document.body.appendChild(iframe); }
+        
+        let qrScript = '';
+        const qrCanvas = document.querySelector('#printQrCode canvas');
+        if (qrCanvas && shopProfile.showQr && shopProfile.upiId) {
+            qrScript = `<div style="text-align:center; margin-top:15px;"><div style="font-weight:bold;font-size:12px;margin-bottom:5px;">SCAN TO PAY</div><img src="${qrCanvas.toDataURL('image/png')}" style="margin:0 auto;display:block;width:120px;height:120px;"></div>`;
+        }
+        
         const content = document.getElementById(divId).innerHTML; const doc = iframe.contentWindow.document;
         doc.open();
-        doc.write(`<html><head><title>Receipt</title><style>body{font-family:'Courier New',Courier,monospace;font-size:12px;color:#000;margin:0;padding:10px;width:300px;}.print-center{text-align:center;}.print-row{display:flex;justify-content:space-between;margin-bottom:5px;}.print-line{border-bottom:1px dashed #000;margin:8px 0;}img{max-width:50px;filter:grayscale(100%) contrast(200%);margin-bottom:5px;}</style></head><body>${content}</body></html>`);
+        doc.write(`<html><head><title>Receipt</title><style>body{font-family:'Courier New',Courier,monospace;font-size:12px;color:#000;margin:0;padding:10px;width:300px;}.print-center{text-align:center;}.print-row{display:flex;justify-content:space-between;margin-bottom:5px;}.print-line{border-bottom:1px dashed #000;margin:8px 0;}img{max-width:50px;filter:grayscale(100%) contrast(200%);margin-bottom:5px;}</style></head><body>${content} ${qrScript}</body></html>`);
         doc.close();
         setTimeout(() => { iframe.contentWindow.focus(); iframe.contentWindow.print(); resolve(); }, 500);
     });
 }
 
-// ✨ SECURE CHECKOUT ✨
 async function confirmCheckout() {
     let tInfo = tablesInfo[activeTable]; 
     if(!tInfo || tInfo.items.length === 0) return showToast(`Table ${activeTable} is empty!`);
@@ -676,7 +749,6 @@ async function confirmCheckout() {
     finally { payBtn.disabled = false; payBtn.innerText = "🖨️ Pay & Print"; }
 }
 
-// ✨ ADVANCED ESC/POS BLUETOOTH & HTML ENGINE ✨
 async function getLogoBytes(base64Image) {
     return new Promise((resolve) => {
         const img = new Image();
@@ -713,28 +785,40 @@ async function getLogoBytes(base64Image) {
 let bleDevice = null; let bleServer = null; let printCharacteristic = null;
 
 async function connectBluetoothPrinter() {
-    if (!navigator.bluetooth) return alert("❌ Bluetooth not supported on this browser.");
-    const btn = document.getElementById('btnBleStatus'); const originalText = btn.innerHTML; btn.innerHTML = "⏳ Searching...";
+    const btn = document.getElementById('btnBleStatus'); const originalText = btn.innerHTML;
     try {
-        showToast("Searching for Bluetooth printers...");
-        bleDevice = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb', 'e7810a71-73ae-499d-8c15-faa9aef0c3f2', '49535343-fe7d-4ae5-8fa9-9fafd205e455', '0000fee7-0000-1000-8000-00805f9b34fb'] });
-        bleDevice.addEventListener('gattserverdisconnected', () => { showToast("⚠️ Printer Disconnected."); printCharacteristic = null; btn.innerHTML = "📡 Pair BLE Printer"; btn.style.background = "transparent"; btn.style.color = "var(--accent)"; });
-        bleServer = await bleDevice.gatt.connect();
-        const services = await bleServer.getPrimaryServices();
+        if (!navigator.bluetooth) { alert("❌ BLUETOOTH NOT SUPPORTED!\n\nApple iOS (iPhone/iPad) blocks Web Bluetooth. You must use Android Chrome, Windows Chrome, or Mac Chrome."); return; }
+        if (!window.isSecureContext) { alert("❌ INSECURE CONNECTION!\n\nWeb Bluetooth ONLY works on 'https://' websites. Please deploy to Netlify/Vercel."); return; }
+        btn.innerHTML = "⏳ Searching..."; showToast("Looking for printers...");
+        bleDevice = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [ '000018f0-0000-1000-8000-00805f9b34fb', 'e7810a71-73ae-499d-8c15-faa9aef0c3f2', '49535343-fe7d-4ae5-8fa9-9fafd205e455', '0000fee7-0000-1000-8000-00805f9b34fb' ] });
+        bleDevice.addEventListener('gattserverdisconnected', () => { alert("⚠️ Printer Disconnected!"); printCharacteristic = null; btn.innerHTML = "📡 Pair BLE Printer"; btn.style.background = "transparent"; btn.style.color = "var(--accent)"; });
+        bleServer = await bleDevice.gatt.connect(); const services = await bleServer.getPrimaryServices();
         for (let service of services) {
             const characteristics = await service.getCharacteristics();
             for (let characteristic of characteristics) {
                 if (characteristic.properties.write || characteristic.properties.writeWithoutResponse) {
-                    printCharacteristic = characteristic; showToast("🖨️ Printer Connected!"); btn.innerHTML = "✅ Connected"; btn.style.background = "var(--success)"; btn.style.color = "#fff"; return;
+                    printCharacteristic = characteristic; showToast("🖨️ Printer Connected Successfully!"); btn.innerHTML = "✅ Connected"; btn.style.background = "var(--success)"; btn.style.color = "#fff"; return;
                 }
             }
         }
-        showToast("❌ Could not find print service."); btn.innerHTML = originalText;
-    } catch (error) { console.error(error); btn.innerHTML = originalText; showToast("Bluetooth Connection Cancelled/Failed."); }
+        alert("❌ Printer paired, but it does not support standard text printing."); btn.innerHTML = originalText; bleDevice.gatt.disconnect();
+    } catch (error) { 
+        console.error(error); btn.innerHTML = originalText;
+        if(error.name === 'NotFoundError') { showToast("❌ Pairing cancelled by user."); } else if (error.name === 'SecurityError') { alert("❌ SECURITY ERROR: Browser blocked Bluetooth access. Make sure you are using HTTPS."); } else if (error.name === 'NotAllowedError') { alert("❌ PERMISSION DENIED: Make sure you granted Bluetooth/Nearby Devices permissions to your browser in your phone settings."); } else { alert("❌ BLUETOOTH ERROR:\n" + error.message); }
+    }
 }
 
 async function sendEscPosToPrinter(order) {
     let gstSummary = {}; 
+
+    // Generate QR First
+    const qrCodeDiv = document.getElementById('printQrCode');
+    qrCodeDiv.innerHTML = '';
+    if (shopProfile.showQr && shopProfile.upiId) {
+        const upiString = `upi://pay?pa=${shopProfile.upiId}&pn=${encodeURIComponent(shopProfile.name)}&am=${order.amount.toFixed(2)}&cu=INR`;
+        new QRCode(qrCodeDiv, { text: upiString, width: 120, height: 120, colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.L });
+        await new Promise(r => setTimeout(r, 50)); // Allow canvas to render
+    }
 
     if (!printCharacteristic) {
         document.getElementById('printBillNo').innerText = order.billNo; document.getElementById('printDate').innerText = order.date;
@@ -759,12 +843,13 @@ async function sendEscPosToPrinter(order) {
             document.getElementById('printItems').innerHTML += htmlGstContent;
         }
         document.getElementById('printTotal').innerText = `₹${order.amount.toFixed(2)}`;
+        
         await executeHtmlPrint('print-receipt');
         return;
     }
 
     const ESC = '\x1B'; const GS = '\x1D'; const INIT = ESC + '@'; 
-    const ALIGN_CENTER = ESC + 'a\x01'; const ALIGN_LEFT = ESC + 'a\x00'; const BOLD_ON = ESC + 'E\x01'; const BOLD_OFF = ESC + 'E\x00'; const DOUBLE_SIZE = GS + '!\x11'; const NORMAL_SIZE = GS + '!\x00'; const FEED_AND_CUT = '\x0A\x0A\x0A\x0A' + ESC + 'm'; 
+    const ALIGN_CENTER = ESC + 'a\x01'; const ALIGN_LEFT = ESC + 'a\x00'; const BOLD_ON = ESC + 'E\x01'; const BOLD_OFF = ESC + 'E\x00'; const DOUBLE_SIZE = GS + '!\x11'; const NORMAL_SIZE = GS + '!\x00';
 
     let receiptText = INIT;
     receiptText += ALIGN_CENTER + DOUBLE_SIZE + BOLD_ON + shopProfile.name + '\n' + NORMAL_SIZE + BOLD_OFF;
@@ -805,21 +890,38 @@ async function sendEscPosToPrinter(order) {
 
     receiptText += ALIGN_CENTER + DOUBLE_SIZE + BOLD_ON + `TOTAL: Rs.${order.amount.toFixed(2)}\n` + NORMAL_SIZE + BOLD_OFF;
     receiptText += '--------------------------------\n';
-    receiptText += ALIGN_CENTER + 'Thank You! Visit Again\n';
-    receiptText += FEED_AND_CUT;
 
-    const encoder = new TextEncoder(); const textData = encoder.encode(receiptText); let payload = textData;
+    let payloads = [];
+    
     if (shopProfile.logo) {
         const logoBytes = await getLogoBytes(shopProfile.logo);
-        if (logoBytes) {
-            const alignCenterCmd = new Uint8Array([0x1B, 0x61, 0x01]); const spacingCmd = new Uint8Array([0x0A]); 
-            payload = new Uint8Array(alignCenterCmd.length + logoBytes.length + spacingCmd.length + textData.length);
-            let offset = 0; payload.set(alignCenterCmd, offset); offset += alignCenterCmd.length; payload.set(logoBytes, offset); offset += logoBytes.length; payload.set(spacingCmd, offset); offset += spacingCmd.length; payload.set(textData, offset);
+        if (logoBytes) { payloads.push(new Uint8Array([0x1B, 0x61, 0x01])); payloads.push(logoBytes); payloads.push(new Uint8Array([0x0A])); }
+    }
+
+    payloads.push(new TextEncoder().encode(receiptText));
+
+    // ✨ HARDWARE QR CODE BYTE ENGINE ✨
+    if (shopProfile.showQr && shopProfile.upiId) {
+        const qrCanvas = qrCodeDiv.querySelector('canvas');
+        if (qrCanvas) {
+            const qrBytes = await getLogoBytes(qrCanvas.toDataURL('image/jpeg', 1.0));
+            if (qrBytes) {
+                payloads.push(new Uint8Array([0x1B, 0x61, 0x01]));
+                payloads.push(new TextEncoder().encode("\nScan to Pay\n"));
+                payloads.push(qrBytes);
+                payloads.push(new Uint8Array([0x0A]));
+            }
         }
     }
 
+    payloads.push(new TextEncoder().encode(ALIGN_CENTER + 'Thank You! Visit Again\n\x0A\x0A\x0A\x0A\x1B\x6D'));
+
+    let totalLength = payloads.reduce((sum, p) => sum + p.length, 0);
+    let finalPayload = new Uint8Array(totalLength);
+    let offset = 0; for (let p of payloads) { finalPayload.set(p, offset); offset += p.length; }
+
     const CHUNK_SIZE = 100; 
-    try { for (let i = 0; i < payload.length; i += CHUNK_SIZE) { const chunk = payload.slice(i, i + CHUNK_SIZE); await printCharacteristic.writeValue(chunk); await new Promise(resolve => setTimeout(resolve, 40)); } } catch(e) { console.error(e); showToast("❌ Print Failed. Printer might be off."); }
+    try { for (let i = 0; i < finalPayload.length; i += CHUNK_SIZE) { const chunk = finalPayload.slice(i, i + CHUNK_SIZE); await printCharacteristic.writeValue(chunk); await new Promise(resolve => setTimeout(resolve, 40)); } } catch(e) { console.error(e); showToast("❌ Print Failed. Printer might be off."); }
 }
 
 async function sendKotToPrinter(tableNo, items) {
@@ -868,8 +970,8 @@ document.addEventListener('keydown', function(event) {
         if (['checkoutCustomerName', 'checkoutBillerName'].includes(activeId)) { if (document.getElementById('checkoutModal').style.display !== 'none') confirmCheckout(); }
         if (['editCustomerName', 'editBillerName'].includes(activeId)) { if (document.getElementById('editOrderModal').style.display !== 'none') saveEditedOrder(); }
         if (activeId === 'menuSearchInput') { document.activeElement.blur(); }
-        if (['shopNameInput', 'shopAddressInput', 'fssaiInput', 'gstinInput', 'tableCountInput', 'startInvoiceInput', 'adminPinSetup', 'openAiKeyInput'].includes(activeId)) { saveSettings(); document.activeElement.blur(); }
+        if (['shopNameInput', 'shopAddressInput', 'fssaiInput', 'gstinInput', 'tableCountInput', 'startInvoiceInput', 'adminPinSetup', 'openAiKeyInput', 'upiIdInput'].includes(activeId)) { saveSettings(); document.activeElement.blur(); }
     }
 });
 
-window.activateSoftware = activateSoftware; window.loginAsStaff = loginAsStaff; window.loginAsAdmin = loginAsAdmin; window.selectPayment = selectPayment; window.confirmCheckout = confirmCheckout; window.saveEditedOrder = saveEditedOrder; window.switchTab = switchTab; window.installApp = installApp; window.lockSystem = lockSystem; window.renderMenuUI = renderMenuUI; window.bookTable = bookTable; window.sendToKitchen = sendToKitchen; window.markServed = markServed; window.openCheckoutModal = openCheckoutModal; window.clearTable = clearTable; window.addMenuItem = addMenuItem; window.addExpense = addExpense; window.editExpense = editExpense; window.deleteExpense = deleteExpense; window.renderStatements = renderStatements; window.exportHistoryToExcel = exportHistoryToExcel; window.loadLogo = loadLogo; window.saveSettings = saveSettings; window.testThermalPrinter = testThermalPrinter; window.factoryReset = factoryReset; window.filterMenu = filterMenu; window.addToCart = addToCart; window.editMenuItem = editMenuItem; window.deleteMenuItem = deleteMenuItem; window.openEditOrderModal = openEditOrderModal; window.reprintReceipt = reprintReceipt; window.selectTable = selectTable; window.modifyQty = modifyQty; window.connectBluetoothPrinter = connectBluetoothPrinter; window.printKitchenTicket = printKitchenTicket; window.addCategory = addCategory; window.deleteCategory = deleteCategory; window.processAIMenu = processAIMenu; window.confirmAiImport = confirmAiImport; window.openAddMenuItemModal = openAddMenuItemModal; window.toggleCartDrawer = toggleCartDrawer;
+window.activateSoftware = activateSoftware; window.loginAsStaff = loginAsStaff; window.loginAsAdmin = loginAsAdmin; window.selectPayment = selectPayment; window.confirmCheckout = confirmCheckout; window.saveEditedOrder = saveEditedOrder; window.switchTab = switchTab; window.installApp = installApp; window.lockSystem = lockSystem; window.renderMenuUI = renderMenuUI; window.bookTable = bookTable; window.sendToKitchen = sendToKitchen; window.markServed = markServed; window.openCheckoutModal = openCheckoutModal; window.clearTable = clearTable; window.addMenuItem = addMenuItem; window.addExpense = addExpense; window.editExpense = editExpense; window.deleteExpense = deleteExpense; window.renderStatements = renderStatements; window.exportHistoryToExcel = exportHistoryToExcel; window.loadLogo = loadLogo; window.saveSettings = saveSettings; window.testThermalPrinter = testThermalPrinter; window.factoryReset = factoryReset; window.filterMenu = filterMenu; window.addToCart = addToCart; window.editMenuItem = editMenuItem; window.deleteMenuItem = deleteMenuItem; window.openEditOrderModal = openEditOrderModal; window.reprintReceipt = reprintReceipt; window.selectTable = selectTable; window.modifyQty = modifyQty; window.connectBluetoothPrinter = connectBluetoothPrinter; window.printKitchenTicket = printKitchenTicket; window.addCategory = addCategory; window.deleteCategory = deleteCategory; window.processAIMenu = processAIMenu; window.confirmAiImport = confirmAiImport; window.openAddMenuItemModal = openAddMenuItemModal; window.toggleCartDrawer = toggleCartDrawer; window.generateAIImage = generateAIImage; window.handleItemImageUpload = handleItemImageUpload;
