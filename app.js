@@ -1,10 +1,15 @@
 document.getElementById('topbarDate').innerText = new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 const ALERT_THRESHOLD_MS = 15 * 60 * 1000; 
+let monthlyChartInstance = null; // Stores the Chart.js instance
 
 if (window.pdfjsLib) { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }
 
+// Date Helpers
 function getLocalISODate(dateObj = new Date()) {
     const yyyy = dateObj.getFullYear(); const mm = String(dateObj.getMonth() + 1).padStart(2, '0'); const dd = String(dateObj.getDate()).padStart(2, '0'); return `${yyyy}-${mm}-${dd}`;
+}
+function getLocalISOMonth(dateObj = new Date()) {
+    const yyyy = dateObj.getFullYear(); const mm = String(dateObj.getMonth() + 1).padStart(2, '0'); return `${yyyy}-${mm}`;
 }
 
 function hashString(str) {
@@ -45,6 +50,9 @@ async function loadFromLocal() {
     await idb.init();
     const lProf = await idb.get('cafe_profile'); if (lProf) shopProfile = lProf;
     const lMenu = await idb.get('cafe_menu'); if (lMenu) menuItems = lMenu;
+    
+    menuItems.forEach(item => { if(item.image && !item.image.startsWith('data:image')) item.image = generateFallbackImage(item.name); });
+    
     const lCat = await idb.get('cafe_categories'); if(lCat) menuCategories = lCat;
     const lHist = await idb.get('cafe_history'); if (lHist) orderHistory = lHist;
     const lExp = await idb.get('cafe_expenses'); if (lExp) dailyExpenses = lExp;
@@ -70,7 +78,6 @@ function updateAllUI() {
     document.getElementById('fssaiInput').value = shopProfile.fssai || ''; document.getElementById('gstinInput').value = shopProfile.gstin || '';
     document.getElementById('tableCountInput').value = shopProfile.tableCount || 10; document.getElementById('startInvoiceInput').value = shopProfile.startInvoiceNo || 1001; 
     document.getElementById('openAiKeyInput').value = shopProfile.openAiKey || '';
-    
     if(document.getElementById('upiIdInput')) document.getElementById('upiIdInput').value = shopProfile.upiId || '';
     if(document.getElementById('enableQrCodeInput')) document.getElementById('enableQrCodeInput').checked = shopProfile.showQr || false;
     
@@ -96,7 +103,6 @@ function generateSettingsQRPreview() {
         textLabel.innerText = "Disabled"; textLabel.style.color = "var(--text-muted)";
     }
 }
-window.generateSettingsQRPreview = generateSettingsQRPreview;
 
 window.addEventListener('firebaseLoaded', () => {
     if(!navigator.onLine) return; 
@@ -188,7 +194,10 @@ window.onload = async function() {
     if (!isAct || !actDate || myClientID === 'unregistered') { document.getElementById('activationOverlay').style.display = 'flex'; return; }
     if ((Date.now() - parseInt(actDate)) / (1000 * 60 * 60 * 24) > 200) { localStorage.removeItem('cafeSoftwareActivated'); localStorage.removeItem('cafeActivationDate'); localStorage.removeItem('cafeLicenseKey'); alert("Your license has expired."); document.getElementById('activationOverlay').style.display = 'flex'; return; } 
     else { document.getElementById('activationOverlay').style.display = 'none'; if(currentRole === null) document.getElementById('loginOverlay').style.display = 'flex'; performRemoteLicenseCheck(); }
-    document.getElementById('reportDateSelect').value = getLocalISODate(); checkDailyReset(); processSyncQueue(); renderCategoryFilters(); 
+    
+    // ✨ SET REPORT DATE TO CURRENT MONTH ✨
+    document.getElementById('reportDateSelect').value = getLocalISOMonth(); 
+    checkDailyReset(); processSyncQueue(); renderCategoryFilters(); 
 }
 
 function checkDailyReset() {
@@ -245,10 +254,8 @@ function saveSettings() {
     shopProfile.name = document.getElementById('shopNameInput').value; shopProfile.address = document.getElementById('shopAddressInput').value; shopProfile.fssai = document.getElementById('fssaiInput').value; shopProfile.gstin = document.getElementById('gstinInput').value; shopProfile.tableCount = parseInt(document.getElementById('tableCountInput').value); const newStartNo = parseInt(document.getElementById('startInvoiceInput').value); if(newStartNo) shopProfile.startInvoiceNo = newStartNo;
     if(document.getElementById('adminPinSetup').value.length >= 4) { shopProfile.adminPinHash = hashString(document.getElementById('adminPinSetup').value); document.getElementById('adminPinSetup').value = ''; }
     shopProfile.openAiKey = document.getElementById('openAiKeyInput').value;
-    
     if(document.getElementById('upiIdInput')) shopProfile.upiId = document.getElementById('upiIdInput').value.trim();
     if(document.getElementById('enableQrCodeInput')) shopProfile.showQr = document.getElementById('enableQrCodeInput').checked;
-    
     for(let i = 1; i <= shopProfile.tableCount; i++) if(!tablesInfo[i]) tablesInfo[i] = { items: [], status: 'empty', savedTime: null, lastReminder: null };
     persistProfile(); persistTables(); showToast("Settings Saved!"); updateProfileVisuals();
 }
@@ -328,13 +335,10 @@ function renderMenuUI() {
             stockIndicator = item.stockQty > 0 ? `<span class="stock-indicator green"><i></i> In Stock</span>` : `<span class="stock-indicator red"><i></i> Out of Stock</span>`;
         }
 
-        // Direct URL integration - Bypass Canvas completely
         let imageHtml = '';
-        if (item.image) {
-            imageHtml = `
-                <img src="${item.image}" class="card-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                <div class="card-img-placeholder" style="display: none; background: linear-gradient(#8D5B4C, #3B2A22); color: white;">${item.name.charAt(0).toUpperCase()}</div>
-            `;
+        if (item.image && item.image.startsWith('data:image')) {
+            imageHtml = `<img src="${item.image}" class="card-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div class="card-img-placeholder" style="display: none; background: linear-gradient(#8D5B4C, #3B2A22); color: white;">${item.name.charAt(0).toUpperCase()}</div>`;
         } else {
             imageHtml = `<div class="card-img-placeholder" style="display: flex; background: linear-gradient(#8D5B4C, #3B2A22); color: white;">${item.name.charAt(0).toUpperCase()}</div>`;
         }
@@ -404,40 +408,61 @@ function handleItemImageUpload(event) {
     reader.readAsDataURL(file);
 }
 
-// ✨ DIRECT URL FETCHER (BYPASSES ALL CORS BLOCKS) ✨
-function generateAIImage() {
+function generateFallbackImage(name) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 400; canvas.height = 300;
+    const ctx = canvas.getContext('2d');
+    const gradient = ctx.createLinearGradient(0, 0, 400, 300);
+    gradient.addColorStop(0, '#8D5B4C'); gradient.addColorStop(1, '#3B2A22'); 
+    ctx.fillStyle = gradient; ctx.fillRect(0, 0, 400, 300);
+    ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold 120px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText((name||"X").charAt(0).toUpperCase(), 200, 150);
+    return canvas.toDataURL('image/jpeg', 0.8);
+}
+
+async function fetchImageAsBase64(promptText) {
+    const prompt = encodeURIComponent(promptText);
+    const url = `https://image.pollinations.ai/prompt/${prompt}?width=400&height=300&nologo=true&n=1`;
+    try {
+        const res = await fetch(url);
+        if(!res.ok) throw new Error("Direct fetch failed");
+        const blob = await res.blob();
+        if (!blob.type.startsWith('image/')) throw new Error("Network blocked image stream"); 
+        return await new Promise(r => { const reader = new FileReader(); reader.onloadend = () => r(reader.result); reader.readAsDataURL(blob); });
+    } catch(e1) {
+        console.log("Direct fetch blocked by firewall. Using proxy...");
+        try {
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+            const res2 = await fetch(proxyUrl);
+            if(!res2.ok) throw new Error("Proxy fetch failed");
+            const blob2 = await res2.blob();
+            if (!blob2.type.startsWith('image/')) throw new Error("Proxy blocked image stream");
+            return await new Promise(r => { const reader = new FileReader(); reader.onloadend = () => r(reader.result); reader.readAsDataURL(blob2); });
+        } catch(e2) { throw new Error("All image fetch methods completely blocked by network."); }
+    }
+}
+
+async function generateAIImage() {
     const name = document.getElementById('newItemName').value.trim();
     if (!name) return showToast("⚠️ Enter an Item Name first to generate image!");
     
-    const btn = document.getElementById('btnGenerateAI');
-    const preview = document.getElementById('newItemImagePreview');
+    const btn = document.getElementById('btnGenerateAI'); const preview = document.getElementById('newItemImagePreview');
+    btn.innerText = "⏳ Generating..."; btn.disabled = true;
     
-    btn.innerText = "⏳ Loading..."; 
-    btn.disabled = true;
+    currentItemImageBase64 = generateFallbackImage(name);
+    preview.src = currentItemImageBase64; preview.style.display = "block"; preview.style.opacity = "0.5";
     
-    const promptStr = encodeURIComponent(`Delicious highly professional food photography of ${name}, bright studio lighting, top down view, white plate, minimalist background, 4k resolution`);
-    
-    // We just save the URL directly! No Base64 conversion needed for AI images.
-    const url = `https://image.pollinations.ai/prompt/${promptStr}?width=400&height=300&nologo=true&seed=${Date.now()}`;
-    
-    currentItemImageBase64 = url; // Save URL to DB
-    preview.src = url;
-    preview.style.display = "block";
-    
-    preview.onload = () => {
-        btn.innerText = "✨ AI Generate"; 
-        btn.disabled = false;
-        showToast("✅ Image Loaded!");
-    };
-    
-    preview.onerror = () => {
-        console.warn("AI Image blocked by network.");
-        preview.style.display = "none";
-        currentItemImageBase64 = ""; // Clear if broken
-        showToast("❌ Network blocked the image.");
-        btn.innerText = "✨ AI Generate"; 
-        btn.disabled = false;
-    };
+    try {
+        const promptStr = `Delicious highly professional food photography of ${name}, bright studio lighting, top down view, white plate, minimalist background, 4k resolution`;
+        currentItemImageBase64 = await fetchImageAsBase64(promptStr);
+        preview.src = currentItemImageBase64; preview.style.opacity = "1";
+        btn.innerText = "✨ AI Generate"; btn.disabled = false; showToast("✅ Image Generated!");
+    } catch (error) { 
+        console.warn(error.message); 
+        preview.style.opacity = "1"; btn.innerText = "✨ AI Generate"; btn.disabled = false; 
+        showToast("⚠️ Network blocked AI. Used Smart Letter Placeholder.");
+    }
 }
 
 function openAddMenuItemModal() {
@@ -445,11 +470,7 @@ function openAddMenuItemModal() {
     document.getElementById('menuFormTitle').innerText = "Add New Menu Item"; document.getElementById('addMenuBtn').innerText = "💾 Save Item";
     document.getElementById('newItemName').value = ''; document.getElementById('newItemPrice').value = ''; document.getElementById('newItemGst').value = '0';
     document.getElementById('newItemTrackStock').checked = false; document.getElementById('newItemStock').style.display = 'none'; document.getElementById('newItemStock').value = '';
-    
-    currentItemImageBase64 = ""; 
-    document.getElementById('newItemImagePreview').src = ""; 
-    document.getElementById('newItemImagePreview').style.display = "none";
-    
+    currentItemImageBase64 = ""; document.getElementById('newItemImagePreview').src = ""; document.getElementById('newItemImagePreview').style.display = "none";
     document.getElementById('menuItemModal').style.display = 'flex'; setTimeout(() => { document.getElementById('newItemName').focus(); }, 100);
 }
 
@@ -462,12 +483,9 @@ function editMenuItem(id) {
         document.getElementById('newItemTrackStock').checked = item.trackStock || false; document.getElementById('newItemStock').style.display = item.trackStock ? 'block' : 'none'; document.getElementById('newItemStock').value = item.stockQty || '';
         
         currentItemImageBase64 = item.image || "";
-        if(currentItemImageBase64) { 
-            document.getElementById('newItemImagePreview').src = currentItemImageBase64; 
-            document.getElementById('newItemImagePreview').style.display = "block"; 
-        } else { 
-            document.getElementById('newItemImagePreview').style.display = "none"; 
-        }
+        if(currentItemImageBase64 && currentItemImageBase64.startsWith('data:image')) { 
+            document.getElementById('newItemImagePreview').src = currentItemImageBase64; document.getElementById('newItemImagePreview').style.display = "block"; document.getElementById('newItemImagePreview').style.opacity = "1";
+        } else { document.getElementById('newItemImagePreview').style.display = "none"; }
         
         editingMenuItemId = id; document.getElementById('menuFormTitle').innerText = "Edit Menu Item"; document.getElementById('addMenuBtn').innerText = "💾 Update Item"; document.getElementById('menuItemModal').style.display = 'flex';
     }
@@ -489,16 +507,13 @@ function addMenuItem() {
 
 function deleteMenuItem(id) { if(confirm("Delete this item permanently?")) { menuItems = menuItems.filter(item => item.id !== id); persistMenu(); renderMenuUI(); showToast("Deleted."); } }
 
-// ✨ AI SMART MENU (DIRECT URL INJECTION) ✨
 async function processAIMenu(event) {
     const file = event.target.files[0]; if (!file) return;
     const apiKey = shopProfile.openAiKey ? shopProfile.openAiKey.trim() : ""; if (!apiKey) { showToast("⚠️ Please enter your Gemini API Key in Settings first."); return; }
-
     const btn = document.getElementById('aiMenuBtn'); btn.disabled = true; btn.innerText = "⏳ Compressing & Analyzing..."; showToast("🤖 Processing image. Please wait...");
 
     try {
         let base64Data = ""; let mimeType = 'image/jpeg';
-
         if (file.type === "application/pdf") {
             if (!window.pdfjsLib) throw new Error("PDF reader library failed to load.");
             const fileReader = new FileReader();
@@ -526,14 +541,12 @@ async function processAIMenu(event) {
                 }; reader.onerror = () => reject(new Error("File reading failed.")); reader.readAsDataURL(file);
             });
         }
-
         const base64Clean = base64Data.split(',')[1];
         
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents: [{ parts: [ { text: `Extract Categories, Items, Prices, and GST percentages (output 0 if missing). For each item, write a 5-word photography prompt. Output strictly as a JSON object: { "categories": [ { "name": "CategoryName", "items": [ { "name": "ItemName", "price": 120, "gst": 0, "image_prompt": "delicious ItemName, high quality photography" } ] } ] }` }, { inline_data: { mime_type: mimeType, data: base64Clean } } ] }], generationConfig: { response_mime_type: "application/json" } })
         });
-
         const data = await response.json();
         if (data.error) throw new Error("API Error: " + data.error.message);
         if (!data.candidates || data.candidates.length === 0) throw new Error("AI returned empty data.");
@@ -547,22 +560,18 @@ async function processAIMenu(event) {
         let treeHtml = "";
         pendingAiMenu.categories.forEach(cat => {
             treeHtml += `<div style="color: var(--primary); font-size: 16px; margin-top: 10px;">${cat.name}</div>`;
-            cat.items.forEach((item, index) => {
-                let branch = (index === cat.items.length - 1) ? "└" : "├";
-                treeHtml += `<div style="padding-left: 10px; color: #555;"> ${branch} ${item.name} – ₹${item.price} (GST: ${item.gst || 0}%)</div>`;
-            });
+            cat.items.forEach((item, index) => { let branch = (index === cat.items.length - 1) ? "└" : "├"; treeHtml += `<div style="padding-left: 10px; color: #555;"> ${branch} ${item.name} – ₹${item.price} (GST: ${item.gst || 0}%)</div>`; });
         });
         document.getElementById('aiPreviewTree').innerHTML = treeHtml; document.getElementById('aiPreviewModal').style.display = 'flex';
-
     } catch (error) { console.error(error); showToast("❌ " + error.message); } finally { btn.disabled = false; btn.innerText = "📁 Upload File"; document.getElementById('aiMenuUploader').value = ''; }
 }
 
-function confirmAiImport() {
+async function confirmAiImport() {
     const btn = document.querySelector('#aiPreviewModal .btn-success');
     try {
         btn.disabled = true; btn.innerText = "⏳ Importing Data...";
         if (!pendingAiMenu || !pendingAiMenu.categories) throw new Error("No data found.");
-        let itemsAdded = 0; let newCategoriesAdded = 0;
+        let itemsAdded = 0; let newCategoriesAdded = 0; let itemsToFetchImagesFor = [];
 
         pendingAiMenu.categories.forEach((cat, catIndex) => {
             let catName = String(cat.name || cat.category || "Uncategorized").trim();
@@ -576,16 +585,11 @@ function confirmAiImport() {
                     let rawGst = item.gst !== undefined ? item.gst : (item.GST !== undefined ? item.GST : 0);
 
                     if (rawName) {
-                        let finalImgUrl = "";
-                        if (item.image_prompt) {
-                            const promptStr = encodeURIComponent(item.image_prompt);
-                            // Set the direct URL. The browser will handle downloading it natively!
-                            finalImgUrl = `https://image.pollinations.ai/prompt/${promptStr}?width=400&height=300&nologo=true&seed=${Date.now() + Math.random()}`;
-                        }
-
-                        const newItem = { id: Date.now() + (catIndex * 100) + itemIndex + Math.floor(Math.random() * 1000), name: String(rawName).trim(), category: catName, price: parseFloat(rawPrice) || 0, gstRate: parseFloat(rawGst) || 0, trackStock: false, stockQty: 0, image: finalImgUrl };
+                        const safeFallback = generateFallbackImage(String(rawName).trim());
+                        const newItem = { id: Date.now() + (catIndex * 100) + itemIndex + Math.floor(Math.random() * 1000), name: String(rawName).trim(), category: catName, price: parseFloat(rawPrice) || 0, gstRate: parseFloat(rawGst) || 0, trackStock: false, stockQty: 0, image: safeFallback };
                         menuItems.push(newItem);
                         itemsAdded++;
+                        if (item.image_prompt) { itemsToFetchImagesFor.push({ id: newItem.id, prompt: item.image_prompt, name: newItem.name }); }
                     }
                 });
             }
@@ -593,8 +597,21 @@ function confirmAiImport() {
 
         persistCategories(); persistMenu(); renderCategoryDropdown(); renderCategoryFilters(); renderCategoryListUI(); renderMenuUI();
         document.getElementById('aiPreviewModal').style.display = 'none'; pendingAiMenu = null;
-        showToast(`✅ Imported ${itemsAdded} items & Auto-Created ${newCategoriesAdded} categories!`);
-
+        showToast(`✅ Imported ${itemsAdded} items. Processing visuals...`);
+        
+        if (itemsToFetchImagesFor.length > 0) {
+            (async () => {
+                for (let info of itemsToFetchImagesFor) {
+                    try {
+                        const base64 = await fetchImageAsBase64(info.prompt);
+                        const targetItem = menuItems.find(m => m.id === info.id);
+                        if (targetItem) { targetItem.image = base64; persistMenu(); renderMenuUI(); }
+                    } catch(e) { console.warn(`Background fetch failed for ${info.name}. Keeping smart placeholder.`); }
+                    await new Promise(r => setTimeout(r, 2500)); 
+                }
+                showToast(`✅ Menu Visuals fully synced!`);
+            })();
+        }
     } catch (error) { console.error(error); showToast("❌ Import failed: " + error.message); } finally { if (btn) { btn.disabled = false; btn.innerText = "✅ Confirm & Import"; } }
 }
 
@@ -615,24 +632,69 @@ function renderExpensesUI() {
     document.getElementById('expensesTableBody').innerHTML = dailyExpenses.map((exp, index) => { if(!exp.id) exp.id = Date.now() + index; return `<tr><td style="color: var(--text-muted);">${exp.time}</td><td style="font-weight: 600; color: var(--text-dark);">${exp.name}</td><td style="color: var(--danger); font-weight: 800;">-₹${exp.cost.toFixed(2)}</td><td><button class="btn btn-outline" style="padding: 6px 10px; font-size: 12px; margin-right: 5px;" onclick="editExpense(${exp.id})">Edit</button><button class="btn btn-danger" style="padding: 6px 10px; font-size: 12px;" onclick="deleteExpense(${exp.id})">Del</button></td></tr>`; }).join(''); 
 }
 
+// ✨ MONTHLY REPORTS & CHART.JS INTEGRATION ✨
 function renderStatements() {
-    const dateInput = document.getElementById('reportDateSelect').value; if (!dateInput) return; 
-    const fallbackDateStr = new Date(dateInput.split('-')[0], dateInput.split('-')[1] - 1, dateInput.split('-')[2]).toLocaleDateString();
+    const monthInput = document.getElementById('reportDateSelect').value; // Format: YYYY-MM
+    if (!monthInput) return; 
+    const [yearStr, monthStr] = monthInput.split('-');
+    const year = parseInt(yearStr);
+    const month = parseInt(monthStr);
 
-    const filteredOrders = orderHistory.filter(order => order.filterDate === dateInput || order.filterDate === fallbackDateStr || (order.date && order.date.split(',')[0] === fallbackDateStr) || (order.date && order.date.startsWith(fallbackDateStr)));
-    const filteredExpenses = dailyExpenses.filter(exp => exp.filterDate === dateInput || exp.date === fallbackDateStr || !exp.date);
+    // Filter by the selected month
+    const filteredOrders = orderHistory.filter(order => order.filterDate && order.filterDate.startsWith(monthInput));
+    const filteredExpenses = dailyExpenses.filter(exp => exp.filterDate && exp.filterDate.startsWith(monthInput));
 
-    const totalSales = filteredOrders.reduce((sum, order) => sum + order.amount, 0); const totalExpenses = filteredExpenses.reduce((sum, exp) => sum + exp.cost, 0); const netProfit = totalSales - totalExpenses;
+    const totalSales = filteredOrders.reduce((sum, order) => sum + order.amount, 0); 
+    const totalExpenses = filteredExpenses.reduce((sum, exp) => sum + exp.cost, 0); 
+    const netProfit = totalSales - totalExpenses;
     
-    document.getElementById('statSales').innerText = `₹${totalSales.toFixed(2)}`; document.getElementById('statExpenses').innerText = `₹${totalExpenses.toFixed(2)}`; 
-    document.getElementById('statProfit').innerText = `₹${netProfit.toFixed(2)}`; document.getElementById('statProfit').style.color = (netProfit < 0) ? '#ffcccb' : 'white';
+    document.getElementById('statSales').innerText = `₹${totalSales.toFixed(2)}`; 
+    document.getElementById('statExpenses').innerText = `₹${totalExpenses.toFixed(2)}`; 
+    document.getElementById('statProfit').innerText = `₹${netProfit.toFixed(2)}`; 
+    document.getElementById('statProfit').style.color = (netProfit < 0) ? '#ffcccb' : 'white';
     
     document.getElementById('historyTableBody').innerHTML = filteredOrders.map(order => {
         let tableStr = String(order.table); let badge = tableStr === 'Takeaway' ? '🛍️ Takeaway' : (tableStr.includes('Table') ? tableStr.replace('Table ', 'T-') : 'T-' + tableStr);
         let payBadge = order.paymentMode ? `<br><span style="font-size:10px; color:var(--text-muted);">${order.paymentMode}</span>` : '';
         return `<tr><td style="font-size: 13px; color: var(--text-muted);">${order.date.split(',')[1] || order.date}</td><td style="font-weight: 800; color: var(--primary);">${order.billNo || '-'}</td><td><strong>${badge}</strong>${payBadge}</td><td style="font-size: 13px;">${order.items || '-'}</td><td style="color: var(--success); font-weight: 800;">+₹${order.amount.toFixed(2)}</td><td><button class="btn btn-outline" style="padding: 6px 12px; font-size: 12px; margin-right: 5px;" onclick="openEditOrderModal(${order.id})">Edit</button><button class="btn" style="padding: 6px 12px; font-size: 12px; background: #64748b;" onclick="reprintReceipt(${order.id})">Print</button></td></tr>`;
     }).join('');
-    if (dateInput === getLocalISODate()) renderExpensesUI();
+
+    // Generate Chart Data
+    const daysInMonth = new Date(year, month, 0).getDate();
+    let labels = []; let salesData = []; let expensesData = [];
+
+    for(let i=1; i<=daysInMonth; i++) {
+        let dayStr = String(i).padStart(2, '0');
+        let targetDate = `${monthInput}-${dayStr}`;
+        labels.push(dayStr);
+        let daySales = filteredOrders.filter(o => o.filterDate === targetDate).reduce((sum, o) => sum + o.amount, 0);
+        let dayExp = filteredExpenses.filter(e => e.filterDate === targetDate).reduce((sum, e) => sum + e.cost, 0);
+        salesData.push(daySales);
+        expensesData.push(dayExp);
+    }
+
+    // Render Chart
+    const ctx = document.getElementById('monthlySalesChart');
+    if(ctx) {
+        if (monthlyChartInstance) monthlyChartInstance.destroy();
+        monthlyChartInstance = new Chart(ctx.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'Revenue (₹)', data: salesData, backgroundColor: '#3A7D44', borderRadius: 4 },
+                    { label: 'Costs (₹)', data: expensesData, backgroundColor: '#B53B3B', borderRadius: 4 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true } },
+                plugins: { legend: { position: 'bottom' } }
+            }
+        });
+    }
+
+    if (monthInput === getLocalISOMonth()) renderExpensesUI();
 }
 
 function openEditOrderModal(id) {
@@ -650,18 +712,19 @@ function saveEditedOrder() {
     }
 }
 
+// ✨ UPDATED: MONTHLY EXCEL EXPORT ✨
 function exportHistoryToExcel() {
     if(orderHistory.length === 0) return showToast("No sales data to export!");
-    const dateInput = document.getElementById('reportDateSelect').value; const fallbackDateStr = new Date(dateInput.split('-')[0], dateInput.split('-')[1] - 1, dateInput.split('-')[2]).toLocaleDateString();
-    const filteredOrders = orderHistory.filter(order => order.filterDate === dateInput || order.filterDate === fallbackDateStr || (order.date && order.date.split(',')[0] === fallbackDateStr) || (order.date && order.date.startsWith(fallbackDateStr)));
-    if(filteredOrders.length === 0) return showToast("No data for this date.");
+    const monthInput = document.getElementById('reportDateSelect').value; 
+    const filteredOrders = orderHistory.filter(order => order.filterDate && order.filterDate.startsWith(monthInput));
+    if(filteredOrders.length === 0) return showToast("No data for this month.");
 
     let csvContent = "Date,Bill No,Table/Type,Payment,Customer,Biller,Items Ordered,Amount (INR)\n";
     filteredOrders.forEach(order => {
         let itemsEscaped = `"${(order.items || '').replace(/"/g, '""')}"`; let tableStr = String(order.table); let tableType = tableStr === 'Takeaway' ? 'Takeaway' : (tableStr.includes('Table') ? tableStr : `Table ${tableStr}`);
         csvContent += `"${order.date}","${order.billNo || ''}","${tableType}","${order.paymentMode || 'Cash'}","${order.customer || ''}","${order.biller || ''}",${itemsEscaped},${order.amount.toFixed(2)}\n`;
     });
-    const link = document.createElement("a"); link.setAttribute("href", URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }))); link.setAttribute("download", `Sales_${dateInput}.csv`); link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    const link = document.createElement("a"); link.setAttribute("href", URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8;' }))); link.setAttribute("download", `Sales_${monthInput}.csv`); link.style.visibility = 'hidden'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
 }
 
 function updateCartUI() {
@@ -688,6 +751,12 @@ function updateCartUI() {
             fc.style.display = 'flex';
             document.getElementById('fc-count').innerText = `${totalItems} ITEMS`;
             document.getElementById('fc-total').innerText = `${total.toFixed(2)}`;
+            
+            // ✨ THE POPPING CART ANIMATION TRIGGER ✨
+            fc.classList.remove('pop-animation');
+            void fc.offsetWidth; // Trigger DOM reflow
+            fc.classList.add('pop-animation');
+            
         } else {
             fc.style.display = 'none';
             document.getElementById('cartDrawer').classList.remove('open');
@@ -727,7 +796,6 @@ function openCheckoutModal() {
     document.getElementById('checkoutModal').style.display = 'flex';
 }
 
-// ✨ HTML INVISIBLE IFRAME PRINT (QR ENABLED) ✨
 function executeHtmlPrint(divId) {
     return new Promise(resolve => {
         let iframe = document.getElementById('print-iframe');
@@ -736,7 +804,7 @@ function executeHtmlPrint(divId) {
         let qrScript = '';
         const qrCanvas = document.querySelector('#printQrCode canvas');
         if (qrCanvas && shopProfile.showQr && shopProfile.upiId) {
-            qrScript = `<div style="text-align:center; margin-top:15px;"><div style="font-weight:bold;font-size:14px;margin-bottom:5px;">SCAN TO PAY</div><img src="${qrCanvas.toDataURL('image/png')}" style="margin:0 auto;display:block;width:180px;height:180px;image-rendering:pixelated;"></div>`;
+            qrScript = `<div style="text-align:center; margin-top:15px;"><div style="font-weight:bold;font-size:14px;margin-bottom:5px;">SCAN TO PAY</div><img src="${qrCanvas.toDataURL('image/png')}" style="margin:0 auto; display:block; width:180px; height:180px; image-rendering: pixelated;"></div>`;
         }
         
         const content = document.getElementById(divId).innerHTML; const doc = iframe.contentWindow.document;
