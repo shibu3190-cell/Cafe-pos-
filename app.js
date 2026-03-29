@@ -712,7 +712,6 @@ function saveEditedOrder() {
     }
 }
 
-// ✨ UPDATED: MONTHLY EXCEL EXPORT ✨
 function exportHistoryToExcel() {
     if(orderHistory.length === 0) return showToast("No sales data to export!");
     const monthInput = document.getElementById('reportDateSelect').value; 
@@ -751,12 +750,9 @@ function updateCartUI() {
             fc.style.display = 'flex';
             document.getElementById('fc-count').innerText = `${totalItems} ITEMS`;
             document.getElementById('fc-total').innerText = `${total.toFixed(2)}`;
-            
-            // ✨ THE POPPING CART ANIMATION TRIGGER ✨
             fc.classList.remove('pop-animation');
             void fc.offsetWidth; // Trigger DOM reflow
             fc.classList.add('pop-animation');
-            
         } else {
             fc.style.display = 'none';
             document.getElementById('cartDrawer').classList.remove('open');
@@ -893,7 +889,7 @@ async function connectBluetoothPrinter() {
         if (!window.isSecureContext) { alert("❌ INSECURE CONNECTION!\n\nWeb Bluetooth ONLY works on 'https://' websites. Please deploy to Netlify/Vercel."); return; }
         btn.innerHTML = "⏳ Searching..."; showToast("Looking for printers...");
         bleDevice = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [ '000018f0-0000-1000-8000-00805f9b34fb', 'e7810a71-73ae-499d-8c15-faa9aef0c3f2', '49535343-fe7d-4ae5-8fa9-9fafd205e455', '0000fee7-0000-1000-8000-00805f9b34fb' ] });
-        bleDevice.addEventListener('gattserverdisconnected', () => { alert("⚠️ Printer Disconnected!"); printCharacteristic = null; btn.innerHTML = "📡 Pair BLE Printer"; btn.style.background = "transparent"; btn.style.color = "var(--accent)"; });
+        bleDevice.addEventListener('gattserverdisconnected', () => { alert("⚠️ Printer Disconnected!"); printCharacteristic = null; btn.innerHTML = "📡 Search & Pair Printer"; btn.style.background = "transparent"; btn.style.color = "var(--accent)"; });
         bleServer = await bleDevice.gatt.connect(); const services = await bleServer.getPrimaryServices();
         for (let service of services) {
             const characteristics = await service.getCharacteristics();
