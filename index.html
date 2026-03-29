@@ -14,7 +14,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -46,7 +45,6 @@
     <div id="menuItemModal" class="modal-overlay" style="display: none;">
         <div class="modal-box">
             <div class="modal-header"><h2 id="menuFormTitle">Add New Menu Item</h2></div>
-            
             <div style="display: flex; gap: 15px; margin-bottom: 15px; align-items: center;">
                 <img id="newItemImagePreview" src="" style="width: 80px; height: 80px; object-fit: cover; border-radius: 12px; border: 1px solid var(--border); display: none;">
                 <div style="display: flex; flex-direction: column; gap: 8px; flex: 1;">
@@ -58,7 +56,6 @@
                     <input type="file" id="newItemImageInput" accept="image/*" style="display: none;" onchange="handleItemImageUpload(event)">
                 </div>
             </div>
-
             <div class="form-group"><label>Item Name</label><input type="text" id="newItemName" placeholder="E.g., Cappuccino"></div>
             <div class="form-group"><label>Category</label><select id="newItemCategory"></select></div>
             <div style="display: flex; gap: 15px;">
@@ -195,7 +192,7 @@
         </button>
         <button class="nav-btn" id="nav-settings" onclick="switchTab('settings')">
             <span class="icon" style="font-size: 24px;">🏪</span>
-            <span class="nav-text">Store</span>
+            <span class="nav-text">Settings</span>
         </button>
         
         <div style="flex-grow: 1;"></div>
@@ -361,19 +358,13 @@
 
                 <div class="card" style="margin-top: 20px;">
                     <div class="card-header" style="flex-wrap: wrap; gap: 10px;">
-                        <h2 class="card-title">Daily Sales Log</h2>
-                        <input type="date" id="dailyReportDate" onchange="renderDailyLog()" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-md); font-family: inherit; font-weight: 600; color: var(--text-dark);">
-                    </div>
-                    
-                    <div style="display: flex; gap: 15px; margin-bottom: 15px;">
-                        <div style="flex:1; background: var(--bg-body); padding: 10px; border-radius: 10px; text-align: center;"><div style="font-size: 10px; font-weight:700; color: var(--text-muted);">DAILY SALES</div><div id="dailySalesTotal" style="font-size: 18px; font-weight: 800; color: var(--success);">₹0</div></div>
-                        <div style="flex:1; background: var(--bg-body); padding: 10px; border-radius: 10px; text-align: center;"><div style="font-size: 10px; font-weight:700; color: var(--text-muted);">DAILY COSTS</div><div id="dailyCostsTotal" style="font-size: 18px; font-weight: 800; color: var(--danger);">₹0</div></div>
+                        <h2 class="card-title">Monthly Sales Log</h2>
                     </div>
 
                     <div class="table-responsive">
                         <table class="data-table">
-                            <thead><tr><th>Time</th><th>Bill #</th><th>Table/Type</th><th>Amount</th><th>Actions</th></tr></thead>
-                            <tbody id="dailyHistoryTableBody"></tbody>
+                            <thead><tr><th>Date</th><th>Bill #</th><th>Table/Type</th><th>Items</th><th>Amount</th><th>Actions</th></tr></thead>
+                            <tbody id="historyTableBody"></tbody>
                         </table>
                     </div>
                     <button class="btn btn-outline" style="font-size: 12px; padding: 8px 12px; border-radius: 12px; margin-top: 15px; width: 100%;" onclick="exportHistoryToExcel()">📊 Download Monthly Excel Data</button>
@@ -391,10 +382,11 @@
                         <div class="form-group"><label>GSTIN No.</label><input type="text" id="gstinInput"></div>
                         <div class="form-group"><label>Full Address</label><input type="text" id="shopAddressInput"></div>
                     </div>
+                    <button class="btn" style="margin-top: 10px; width: 100%; padding: 15px; font-size: 16px; background: var(--primary); border-radius: 12px;" onclick="saveSettings()">Save Profile</button>
                 </div>
 
                 <div class="card">
-                    <h2 class="card-title" style="margin-bottom: 20px;">💳 Payment & Invoice Settings</h2>
+                    <h2 class="card-title" style="margin-bottom: 25px;">💳 Payment & Invoice Settings</h2>
                     <div style="display: grid; gap: 20px;">
                         <div style="display: flex; gap: 15px; align-items: flex-start; flex-wrap: wrap;">
                             <div style="flex: 1; min-width: 200px;">
@@ -410,10 +402,11 @@
                             </div>
                         </div>
                     </div>
+                    <button class="btn" style="margin-top: 15px; width: 100%; padding: 15px; font-size: 16px; background: var(--primary); border-radius: 12px;" onclick="saveSettings()">Save Payment Settings</button>
                 </div>
                 
                 <div class="card">
-                    <h2 class="card-title" style="margin-bottom: 20px;">⚙️ System Preferences</h2>
+                    <h2 class="card-title" style="margin-bottom: 25px;">⚙️ System Preferences</h2>
                     <div style="display: grid; gap: 20px;">
                         <div class="form-group">
                             <label>Terminal Device ID <span style="color: var(--danger); font-size: 10px;">(DO NOT SHARE)</span></label>
@@ -427,16 +420,13 @@
                         <div class="form-group"><label>Starting Invoice No.</label><input type="number" id="startInvoiceInput" inputmode="numeric"></div>
                         <div class="form-group"><label style="color: var(--warning);">Change Admin PIN</label><input type="password" id="adminPinSetup" placeholder="Leave blank to keep current" inputmode="numeric" maxlength="4"></div>
                     </div>
-                </div>
-
-                <div style="margin-bottom: 25px;">
-                    <button class="btn btn-success" style="width: 100%; padding: 18px; font-size: 16px; border-radius: 16px; box-shadow: 0 8px 20px rgba(58, 125, 68, 0.3);" onclick="saveSettings()">💾 Save All Settings</button>
+                    <button class="btn" style="margin-top: 10px; width: 100%; padding: 15px; font-size: 16px; background: var(--primary); border-radius: 12px;" onclick="saveSettings()">Save Preferences</button>
                 </div>
 
                 <div class="card">
-                    <h2 class="card-title" style="margin-bottom: 5px;">🖨️ Hardware & Printing</h2>
-                    <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 20px;">Pair your wireless ESC/POS thermal printer.</p>
-                    <button id="btnBleStatus" class="btn btn-outline" style="width: 100%; padding: 16px; border-color: var(--accent); color: var(--accent); border-radius: 16px; font-size: 16px; font-weight: 700;" onclick="connectBluetoothPrinter()">📡 Pair BLE Printer</button>
+                    <h2 class="card-title" style="margin-bottom: 10px;">📡 Bluetooth Connection</h2>
+                    <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 20px; font-weight: 500;">Pair a wireless thermal printer to print receipts and kitchen tickets (KOT). Ensure your device's Bluetooth is enabled.</p>
+                    <button id="btnBleStatus" class="btn btn-outline" style="width: 100%; border-color: var(--accent); color: var(--accent); border-radius: 16px; padding: 15px; font-size: 16px; font-weight: 700;" onclick="connectBluetoothPrinter()">📡 Search & Pair Printer</button>
                 </div>
                 
                 <div class="card" style="border: 1px solid var(--danger); background: #FFF5F5;">
@@ -504,6 +494,6 @@
         if ('serviceWorker' in navigator) { navigator.serviceWorker.getRegistrations().then(function(registrations) { for(let registration of registrations) { registration.unregister(); } }); }
         caches.keys().then(function(names) { for (let name of names) caches.delete(name); });
     </script>
-    <script src="app.js?v=1350"></script>
+    <script src="app.js?v=1300"></script>
 </body>
 </html>
